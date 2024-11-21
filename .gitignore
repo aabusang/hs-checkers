@@ -1,0 +1,13 @@
+.stack-work/
+*~
+
+# Stack-specific files
+.stack-work/
+stack.yaml.lock
+
+# Cabal-specific files
+dist/
+dist-newstyle/
+cabal.sandbox.config
+cabal.project.local
+
