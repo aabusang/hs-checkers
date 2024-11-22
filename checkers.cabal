@@ -28,6 +28,8 @@ library
       AI
       Game
       Lib
+      Rules
+      Types
       UI
   other-modules:
       Paths_checkers

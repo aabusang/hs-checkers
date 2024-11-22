@@ -1,94 +1,141 @@
-module AI (Difficulty(..), aiMove, makeAIMove) where
+{-|
+Module      : AI
+Description : AI player implementation for the Checkers game
+Copyright   : (c) Your Name, 2024
+License     : Your License
 
-import Game
-import System.Random
-import System.IO.Unsafe (unsafePerformIO)
+This module implements different AI strategies for playing checkers,
+including random moves and minimax algorithm with alpha-beta pruning.
+-}
+module AI
+    ( makeAIMove
+    , Difficulty(..)
+    ) where
 
-data Difficulty = Easy | Medium | Hard deriving (Show, Eq)
+import System.Random (randomRIO)
+import Data.List (maximumBy)
+import Data.Ord (comparing)
+import Types
+import Rules (isValidMove, isGameOver, getValidMoves, makeMove)
 
-aiMove :: Difficulty -> GameState -> IO GameState
-aiMove difficulty gs = do
-  let moves = getAllValidMoves gs
-  case difficulty of
-    Easy -> randomMove moves gs
-    Medium -> do
-      r <- randomRIO (1 :: Int, 10 :: Int)
-      if r <= 7
-        then bestMove 2 gs
-        else randomMove moves gs
-    Hard -> bestMove 4 gs
+-- | Makes an AI move based on the selected difficulty
+makeAIMove :: GameState -> Difficulty -> IO GameState
+makeAIMove gs difficulty = case difficulty of
+    Easy -> makeRandomMove gs
+    Medium -> makeMediumMove gs
+    Hard -> makeHardMove gs
 
-randomMove :: [(Position, [Position])] -> GameState -> IO GameState
-randomMove moves gs = do
-  if null moves
+-- | Makes a random valid move
+makeRandomMove :: GameState -> IO GameState
+makeRandomMove gs@(GameState board player _) = do
+    let pieces = [(x, y) | x <- [0..7], y <- [0..7],
+                 case board !! y !! x of
+                   Just (Piece p _) -> p == player
+                   _ -> False]
+    if null pieces
     then return gs
     else do
-      i <- randomRIO (0, length moves - 1)
-      let (from, tos) = moves !! i
-      j <- randomRIO (0, length tos - 1)
-      let to = tos !! j
-      return $ makeMove gs from to
+        pieceIndex <- randomRIO (0, length pieces - 1)
+        let piece = pieces !! pieceIndex
+        let moves = getValidMoves gs piece
+        if null moves
+        then makeRandomMove gs  -- Try again with a different piece
+        else do
+            moveIndex <- randomRIO (0, length moves - 1)
+            let move = moves !! moveIndex
+            return $ makeMove gs piece move
 
-bestMove :: Int -> GameState -> IO GameState
-bestMove depth gs = do
-  let moves = getAllValidMoves gs
-  if null moves
+-- | Makes a medium difficulty move using a simple heuristic
+makeMediumMove :: GameState -> IO GameState
+makeMediumMove gs@(GameState board player _) = do
+    let pieces = [(x, y) | x <- [0..7], y <- [0..7],
+                 case board !! y !! x of
+                   Just (Piece p _) -> p == player
+                   _ -> False]
+    if null pieces
     then return gs
     else do
-      let scoredMoves = map (\(from, tos) -> 
-                              maximum $ map (\to -> 
-                                (from, to, minimax depth (makeMove gs from to) (oppositePlayer (currentPlayer gs)) False)) tos) moves
-      let (bestFrom, bestTo, _) = maximum scoredMoves
-      return $ makeMove gs bestFrom bestTo
+        let moves = concatMap (\p -> map (\to -> (p, to)) (getValidMoves gs p)) pieces
+        if null moves
+        then return gs
+        else do
+            let scoredMoves = map (\m -> (m, scoreMove gs m)) moves
+            let bestMove = maximumBy (comparing snd) scoredMoves
+            let (from, to) = fst bestMove
+            return $ makeMove gs from to
 
-makeAIMove :: Difficulty -> GameState -> GameState
-makeAIMove diff gs = case getBestMove diff gs of
-    Just move -> makeMove gs (fst move) (snd move)
-    Nothing -> gs  -- No valid moves available
-
-getBestMove :: Difficulty -> GameState -> Maybe (Position, Position)
-getBestMove Easy gs = case getRandomMove gs of
-    Just move -> Just move
-    Nothing -> Nothing
-getBestMove Medium gs = case getRandomMove gs of
-    Just move -> Just move
-    Nothing -> Nothing
-getBestMove Hard gs = case getRandomMove gs of
-    Just move -> Just move
-    Nothing -> Nothing
-
-getRandomMove :: GameState -> Maybe (Position, Position)
-getRandomMove gs =
+-- | Makes a hard difficulty move using minimax with alpha-beta pruning
+makeHardMove :: GameState -> IO GameState
+makeHardMove gs = do
+    let depth = 4  -- Adjust depth for different difficulty levels
     let moves = getAllPossibleMoves gs
-    in if null moves
-       then Nothing
-       else Just $ moves !! (unsafePerformIO $ randomRIO (0, length moves - 1))
+    if null moves
+    then return gs
+    else do
+        let scoredMoves = map (\(from, to) -> 
+                ((from, to), minimax (makeMove gs from to) depth True minBound maxBound))
+                moves
+        let bestMove = maximumBy (comparing snd) scoredMoves
+        let (from, to) = fst bestMove
+        return $ makeMove gs from to
 
--- Get all possible moves for the current player
+-- | Gets all possible moves for the current player
 getAllPossibleMoves :: GameState -> [(Position, Position)]
 getAllPossibleMoves gs@(GameState board player _) =
-  [(from, to) | 
-    x <- [0..7], y <- [0..7],
-    let from = (x, y),
-    case board !! y !! x of
-      Just (Piece p _) | p == player -> True
-      _ -> False,
-    to <- [(x+dx, y+dy) | dx <- [-2,-1,1,2], dy <- [-2,-1,1,2]],
-    isValidMove gs from to]
+    [(from, to) | 
+     x <- [0..7], y <- [0..7],
+     let from = (x, y),
+     case board !! y !! x of
+         Just (Piece p _) | p == player -> True
+         _ -> False,
+     to <- getValidMoves gs from]
 
-minimax :: Int -> GameState -> Player -> Bool -> Int
-minimax 0 gs player isMax = evaluateBoard gs player
-minimax depth gs player isMax
-  | isGameOver gs = if isMax then minBound else maxBound
+-- | Scores a move based on simple heuristics
+scoreMove :: GameState -> (Position, Position) -> Int
+scoreMove gs (from, to) =
+    let newGs@(GameState _ currentPlayer _) = makeMove gs from to
+        (fromX, fromY) = from
+        (toX, toY) = to
+        isJump = abs (fromX - toX) == 2
+        pieceValue = case board newGs !! toY !! toX of
+            Just (Piece _ King) -> 3
+            Just (Piece _ Man) -> 1
+            Nothing -> 0
+        positionValue = if currentPlayer == Black
+                       then toY  -- Black wants to move down
+                       else 7 - toY  -- White wants to move up
+    in pieceValue * 10 + positionValue + if isJump then 20 else 0
+
+-- | Minimax algorithm with alpha-beta pruning
+minimax :: GameState -> Int -> Bool -> Int -> Int -> Int
+minimax gs depth isMax alpha beta
+  | isGameOver gs = if isMax then (minBound :: Int) else (maxBound :: Int)
+  | depth == 0 = evaluatePosition gs
   | otherwise =
-      let moves = getAllValidMoves gs
-          nextStates = [makeMove gs from to | (from, tos) <- moves, to <- tos]
-          nextScores = map (\nextGs -> minimax (depth - 1) nextGs player (not isMax)) nextStates
-      in if isMax then maximum nextScores else minimum nextScores
+      let moves = getAllPossibleMoves gs
+          initialValue = if isMax then (minBound :: Int) else (maxBound :: Int)
+          nextStates = map (\(from, to) -> makeMove gs from to) moves
+      in if isMax
+         then maximum $ map (\state -> minimax state (depth - 1) False alpha beta) nextStates
+         else minimum $ map (\state -> minimax state (depth - 1) True alpha beta) nextStates
 
-evaluateBoard :: GameState -> Player -> Int
-evaluateBoard (GameState board player _) forPlayer =
-  sum [pieceValue p | row <- board, Just p <- row]
+-- | Evaluates a position using material and positional heuristics
+evaluatePosition :: GameState -> Int
+evaluatePosition (GameState board player _) =
+    sum [evaluatePiece (x, y) piece | 
+         x <- [0..7], y <- [0..7],
+         let piece = board !! y !! x,
+         case piece of
+             Just _ -> True
+             Nothing -> False]
   where
-    pieceValue (Piece p Man) = if p == forPlayer then 1 else -1
-    pieceValue (Piece p King) = if p == forPlayer then 2 else -2
+    evaluatePiece (x, y) (Just (Piece p t)) =
+        let baseValue = case t of
+                King -> 30
+                Man -> 10
+            positionValue = case p of
+                Black -> y  -- Black wants to advance down
+                White -> 7 - y  -- White wants to advance up
+            multiplier = if p == player then 1 else -1
+        in (baseValue + positionValue) * multiplier
+    evaluatePiece _ Nothing = 0

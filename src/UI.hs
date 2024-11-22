@@ -1,123 +1,149 @@
-module UI where
+{-|
+Module      : UI
+Description : User interface for the Checkers game
+Copyright   : (c) Your Name, 2024
+License     : Your License
+
+This module handles the graphical user interface for the Checkers game using
+the Gloss library. It includes functions for:
+  * Drawing the game board
+  * Handling user input
+  * Displaying game state
+-}
+module UI
+    ( -- * UI Functions
+      playCheckers
+    ) where
 
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
-import Game
-import AI
+import Types (Player(..), PieceType(..), Piece(..), Position, Board, GameState(..), GameMode(..), currentPlayer, selectedPiece, board, GameMode(..))
+import Game (initialGameState)
+import AI (makeAIMove)
+import Rules (isValidMove, isGameOver, makeMove, oppositePlayer)
 
-data GameMode = SinglePlayer Difficulty | TwoPlayer deriving (Show, Eq)
+-- | Window settings
+windowWidth, windowHeight :: Int
+windowWidth = 800
+windowHeight = 800
 
+-- | Square size in pixels
+squareSize :: Float
+squareSize = 50
+
+-- | The state of the UI
 data UIState = UIState
-  { gameState :: GameState
-  , gameMode :: GameMode
-  }
+    { gameState :: GameState  -- ^ Current game state
+    , gameMode :: GameMode    -- ^ Current game mode (PvP or PvAI)
+    }
 
-windowSize :: Int
-windowSize = 800
+-- | Initial UI state
+initialUIState :: GameMode -> UIState
+initialUIState mode = UIState initialGameState mode
 
-cellSize :: Float
-cellSize = fromIntegral windowSize / 8
+-- | Draws a checker piece
+drawPiece :: Piece -> Picture
+drawPiece (Piece player pieceType) =
+    let baseColor = case player of
+            Black -> black
+            White -> white
+        kingMark = case pieceType of
+            King -> pictures [color (opposite baseColor) $ circleSolid 10]
+            Man -> blank
+        opposite black = white
+        opposite white = black
+    in pictures [ color baseColor $ circleSolid 20
+               , kingMark
+               ]
 
-drawBoard :: UIState -> Picture
-drawBoard (UIState gs mode) =
-  pictures [
-    drawCells,
-    drawPieces (board gs),
-    drawSelectedPiece (selectedPiece gs),
-    drawGameStatus gs,
-    drawTurnIndicator gs
-  ]
+-- | Draws the game board
+drawBoard :: Board -> Picture
+drawBoard board =
+    pictures [ squares
+             , pieces
+             ]
+  where
+    squares = pictures
+        [ color (if even (i + j) then dark brown else light brown) $
+          translate (fromIntegral i * squareSize - offset)
+                   (fromIntegral j * squareSize - offset) $
+          rectangleSolid squareSize squareSize
+        | i <- [0..7]
+        , j <- [0..7]
+        ]
+    pieces = pictures
+        [ translate (fromIntegral i * squareSize - offset)
+                   (fromIntegral j * squareSize - offset) $
+          maybe blank drawPiece piece
+        | i <- [0..7]
+        , j <- [0..7]
+        , let piece = board !! j !! i
+        ]
+    offset = fromIntegral (windowWidth `div` 2) - squareSize * 4
+    brown = makeColor 0.6 0.4 0.2 1.0
+    dark c = makeColor (r*0.8) (g*0.8) (b*0.8) a
+      where (r,g,b,a) = rgbaOfColor c
+    light c = makeColor (r*1.2) (g*1.2) (b*1.2) a
+      where (r,g,b,a) = rgbaOfColor c
 
-drawCells :: Picture
-drawCells = pictures [
-  color (if even (i + j) then makeColorI 76 32 16 255 else makeColorI 245 222 179 255) $
-    translate (fromIntegral i * cellSize - fromIntegral windowSize / 2 + cellSize / 2)
-              (fromIntegral j * cellSize - fromIntegral windowSize / 2 + cellSize / 2) $
-    rectangleSolid cellSize cellSize
-  | i <- [0..7], j <- [0..7]
-  ]
-
-drawPieces :: Board -> Picture
-drawPieces board = pictures [
-  drawPiece (fromIntegral x * cellSize - fromIntegral windowSize / 2 + cellSize / 2)
-            (fromIntegral y * cellSize - fromIntegral windowSize / 2 + cellSize / 2)
-            piece
-  | (y, row) <- zip [0..] board,
-    (x, Just piece) <- zip [0..] row
-  ]
-
-drawPiece :: Float -> Float -> Piece -> Picture
-drawPiece x y (Piece player pieceType) =
-  translate x y $
-  color (if player == Black then black else white) $
-  pictures [
-    circleSolid (cellSize * 0.4),
-    color (if player == Black then white else black) $
-    if pieceType == King
-      then rectangleSolid (cellSize * 0.2) (cellSize * 0.2)
-      else blank
-  ]
-
-drawSelectedPiece :: Maybe Position -> Picture
-drawSelectedPiece Nothing = blank
-drawSelectedPiece (Just (x, y)) =
-  translate (fromIntegral x * cellSize - fromIntegral windowSize / 2 + cellSize / 2)
-            (fromIntegral y * cellSize - fromIntegral windowSize / 2 + cellSize / 2) $
-  color yellow $
-  rectangleWire cellSize cellSize
-
-drawGameStatus :: GameState -> Picture
-drawGameStatus gs
+-- | Draws the game state
+drawGameState :: UIState -> Picture
+drawGameState (UIState gs mode)
   | isGameOver gs = translate (-100) 0 $ scale 0.2 0.2 $ color red $ 
       text $ "Game Over! " ++ show (oppositePlayer (currentPlayer gs)) ++ " wins!"
-  | otherwise = blank
+  | otherwise = pictures [ drawBoard (board gs)
+                        , translate (-100) (-350) $ scale 0.2 0.2 $ 
+                          text $ show (currentPlayer gs) ++ "'s turn"
+                        ]
 
-drawTurnIndicator :: GameState -> Picture
-drawTurnIndicator gs =
-  translate (-fromIntegral windowSize / 2 + 10) (fromIntegral windowSize / 2 - 30) $
-  scale 0.15 0.15 $
-  color (if currentPlayer gs == Black then black else white) $
-  text $ show (currentPlayer gs) ++ "'s Turn"
+-- | Converts screen coordinates to board coordinates
+screenToBoard :: (Float, Float) -> Maybe Position
+screenToBoard (x, y) =
+    let offset = fromIntegral (windowWidth `div` 2) - squareSize * 4
+        i = floor ((x + offset) / squareSize)
+        j = floor ((y + offset) / squareSize)
+    in if i >= 0 && i < 8 && j >= 0 && j < 8
+       then Just (i, j)
+       else Nothing
 
-handleEvent :: Event -> UIState -> UIState
-handleEvent (EventKey (MouseButton LeftButton) Down _ (x, y)) uiState@(UIState gs mode) =
-  let boardX = floor ((x + fromIntegral windowSize / 2) / cellSize)
-      boardY = floor ((y + fromIntegral windowSize / 2) / cellSize)
-      pos = (boardX, boardY)
+-- | Handles mouse input
+handleInput :: Event -> UIState -> UIState
+handleInput (EventKey (MouseButton LeftButton) Down _ (x, y)) (UIState gs mode) =
+  let pos = screenToBoard (x, y)
   in if isGameOver gs
-    then uiState  -- Prevent moves after game is over
-    else case selectedPiece gs of
-      Nothing -> 
-        if isOwnPiece gs pos
-          then UIState (gs { selectedPiece = Just pos }) mode
-          else uiState
-      Just from ->
-        if isValidMove gs from pos
-          then case mode of
-            SinglePlayer diff -> 
-              let playerGs = makeMove gs from pos
-              in if isGameOver playerGs
-                then UIState playerGs mode
-                else UIState (makeAIMove diff playerGs) mode
-            TwoPlayer ->
-              UIState (makeMove gs from pos) mode
-        else UIState (gs { selectedPiece = Just pos }) mode
+     then UIState initialGameState mode  -- Start a new game when game is over
+     else case pos of
+          Nothing -> UIState gs mode
+          Just pos -> case selectedPiece gs of
+            Nothing -> case board gs !! snd pos !! fst pos of
+              Just (Piece p _) | p == currentPlayer gs ->
+                UIState (gs { selectedPiece = Just pos }) mode
+              _ -> UIState gs mode
+            Just from ->
+              if isValidMove gs from pos
+              then let playerGs = makeMove gs from pos
+                   in if isGameOver playerGs
+                      then UIState playerGs mode  -- Game over after player's move
+                      else case mode of
+                           SinglePlayer _ -> UIState playerGs mode  -- AI will move in update
+                           TwoPlayer -> UIState playerGs mode
+              else UIState (gs { selectedPiece = Nothing }) mode
+handleInput _ state = state
 
-handleEvent (EventKey (Char 'r') Down _ _) (UIState _ mode) =
-  UIState initialGameState mode  -- Reset game
-handleEvent _ uiState = uiState
+-- | Updates the game state
+updateGame :: Float -> UIState -> UIState
+updateGame _ state@(UIState gs mode)
+  | case mode of
+      SinglePlayer _ -> currentPlayer gs == Black && not (isGameOver gs)
+      TwoPlayer -> False =
+      state  -- AI move will be made in event handling
+  | otherwise = state
 
-isOwnPiece :: GameState -> Position -> Bool
-isOwnPiece (GameState board player _) (x, y) =
-  case board !! y !! x of
-    Just (Piece p _) -> p == player
-    _ -> False
-
-runGame :: GameMode -> IO ()
-runGame mode = play (InWindow "Checkers" (windowSize, windowSize) (10, 10))
-               white
-               60
-               (UIState initialGameState mode)
-               drawBoard
-               handleEvent
-               (const id)
+-- | Starts the game
+playCheckers :: GameMode -> IO ()
+playCheckers mode = play window background fps (initialUIState mode)
+                        drawGameState handleInput updateGame
+  where
+    window = InWindow "Checkers" (windowWidth, windowHeight) (10, 10)
+    background = white
+    fps = 30
