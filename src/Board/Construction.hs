@@ -1,20 +1,21 @@
-{-|
-Module      : Game
-Description : Core game logic for the Checkers game
-Copyright   : (c) Your Name, 2024
-License     : Your License
+-- |
+-- Module      : Board.Construction
+-- Description : Board construction and initialization
+-- 
+-- This module handles the creation and initialization of checker boards,
+-- providing functions to set up standard game positions and custom board layouts.
 
-This module handles the core game mechanics, including:
-  * Setting up the initial game board
-  * Managing game state
--}
-module Game 
-    ( -- * Game Setup
-      initialBoard
-    , initialGameState
+module Board.Construction 
+    ( initialBoard
+    , emptyBoard
+    , standardGameSetup
     ) where
 
-import Types (Player(..), PieceType(..), Piece(..), Position, Board, GameState(..))
+import Board.Types (Board, Piece(..), Player(..), PieceType(..))
+
+-- | Creates an empty 8x8 board
+emptyBoard :: Board
+emptyBoard = replicate 8 (replicate 8 Nothing)
 
 -- | Creates the initial checker board setup.
 -- Black pieces are at the top, White pieces at the bottom.
@@ -32,7 +33,6 @@ initialBoard = [
     [Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man)]
     ]
 
--- | Creates the initial game state.
--- The game starts with White player's turn and no piece selected.
-initialGameState :: GameState
-initialGameState = GameState initialBoard White Nothing
+-- | Creates a standard game setup with initial board and Black as starting player
+standardGameSetup :: (Board, Player)
+standardGameSetup = (initialBoard, Black)

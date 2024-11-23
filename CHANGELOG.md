@@ -1,11 +1,10 @@
-# Changelog for `checkers`
+# Changelog for Checkers
 
-All notable changes to this project will be documented in this file.
+## 0.1.0.0 -- Initial version
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to the
-[Haskell Package Versioning Policy](https://pvp.haskell.org/).
-
-## Unreleased
-
-## 0.1.0.0 - YYYY-MM-DD
+* Initial release of the Checkers game
+* Features:
+  * Single player mode with three difficulty levels (Easy, Medium, Hard)
+  * Two player mode
+  * Basic checkers rules implementation
+  * Graphical user interface using Gloss

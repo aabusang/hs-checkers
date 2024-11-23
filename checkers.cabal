@@ -25,12 +25,18 @@ source-repository head
 
 library
   exposed-modules:
-      AI
-      Game
-      Lib
-      Rules
-      Types
-      UI
+      AI.AIPlayer
+      Board.Construction
+      Board.Types
+      Game.State
+      Rules.Capture
+      Rules.GameEnd
+      Rules.Movement
+      Rules.Promotion
+      Types.Game
+      UI.Input
+      UI.Rendering
+      UI.Types
   other-modules:
       Paths_checkers
   autogen-modules:
@@ -64,6 +70,10 @@ test-suite checkers-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Board.PatternsSpec
+      Rules.CaptureSpec
+      Rules.MovementSpec
+      Rules.PromotionSpec
       Paths_checkers
   autogen-modules:
       Paths_checkers
