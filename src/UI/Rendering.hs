@@ -4,62 +4,69 @@
 -- 
 -- This module handles all the graphical rendering using the Gloss library,
 -- including drawing the board, pieces, and game state.
-
 module UI.Rendering
-    ( -- * Window Settings
-      windowWidth
+    ( drawGameState
+    , windowWidth
     , windowHeight
-    , squareSize
-      -- * Drawing Functions
-    , drawGameState
-    , drawBoard
-    , drawPiece
     ) where
 
 import Graphics.Gloss
-import Board.Types (Player(..), Piece(..), Board)
+import Board.Types (Player(..), Piece(..), Board, Position)
 import Game.State (GameState(..))
 import UI.Types (UIState(..))
+import UI.Shared (BoardConfig(..), defaultConfig, boardToScreenPosition)
 
 -- | Window settings
 windowWidth, windowHeight :: Int
 windowWidth = 800
 windowHeight = 800
 
--- | Square size in pixels
-squareSize :: Float
-squareSize = 50
-
--- | Draws a checker piece
-drawPiece :: Piece -> Picture
-drawPiece (Piece player pieceType') =
-    color pieceColor $ pictures [circleSolid radius]
-  where
-    pieceColor = case player of
-        Black -> black
-        White -> white
-    radius = 20
-
--- | Draws the game board
-drawBoard :: Board -> Picture
-drawBoard board' =
-    pictures [squares, pieces]
-  where
-    squares = pictures
-        [ translate (fromIntegral x * squareSize) (fromIntegral y * squareSize) $
-          color (if even (x + y) then light (greyN 0.5) else dark (greyN 0.5)) $
-          rectangleSolid squareSize squareSize
-        | x <- [0..7 :: Int]
-        , y <- [0..7 :: Int]
+-- | Draw the checkered board squares
+drawSquares :: BoardConfig -> Picture
+drawSquares config =
+    pictures
+        [ translate screenX screenY $
+          color squareColor $
+          rectangleSolid scaledSquareSize scaledSquareSize
+        | x <- [boardStart config..boardEnd config]
+        , y <- [boardStart config..boardEnd config]
+        , let scaledSquareSize = squareSize config * scaleFactor config
+        , let (screenX, screenY) = boardToScreenPosition config (x, y)
+        , let squareColor = if odd (x + y) 
+                           then light (greyN 0.5)
+                           else dark (greyN 0.5)
         ]
-    pieces = pictures
-        [ translate (fromIntegral x * squareSize) (fromIntegral y * squareSize) $
-          maybe blank drawPiece (board' !! y !! x)
+
+-- | Draw a single piece
+drawPiece :: Maybe Position -> Position -> Piece -> Picture
+drawPiece selectedPos pos (Piece player _) =
+    let config = defaultConfig
+        scaledSquareSize = squareSize config * scaleFactor config
+        pieceRadius = scaledSquareSize * 0.4
+        baseCircle = color pieceColor $ circleSolid pieceRadius
+        highlight = if Just pos == selectedPos
+                   then color yellow $ circle (pieceRadius * 1.2)
+                   else Blank
+        pieceColor = if player == Black then black else white
+    in pictures [baseCircle, highlight]
+
+-- | Draw all pieces on the board
+drawPieces :: BoardConfig -> Board -> Maybe Position -> Picture
+drawPieces boardConfig inputBoard selectedPos =
+    pictures
+        [ translate screenX screenY $
+          case inputBoard !! y !! x of
+            Just piece -> drawPiece selectedPos (x, y) piece
+            Nothing -> Blank
         | x <- [0..7]
         , y <- [0..7]
+        , let (screenX, screenY) = boardToScreenPosition boardConfig (x, y)
         ]
 
--- | Draws the game state
+-- | Draw the complete game state
 drawGameState :: UIState -> Picture
-drawGameState (UIState gs _) =
-    pictures [translate (-200) (-200) $ drawBoard (board gs)]
+drawGameState (UIState (GameState inputBoard _ _) _ selectedPos) =
+    let config = defaultConfig
+    in pictures [ drawSquares config
+                , drawPieces config inputBoard selectedPos
+                ]

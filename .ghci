@@ -1,0 +1,8 @@
+-- Short custom prompt
+:set prompt "checkers> "
+
+-- Add paths to find your source files
+:set -iapp -isrc
+
+-- Automatically load `Main` on startup
+-- :load Main

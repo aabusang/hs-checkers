@@ -1,6 +1,6 @@
 name:                checkers
 version:             0.1.0.0
-github:              "githubuser/checkers"
+github:              "aabusang/checkers"
 license:             BSD-3-Clause
 author:              "Author name here"
 maintainer:          "example@example.com"
@@ -23,11 +23,15 @@ ghc-options:
 
 library:
   source-dirs: src
+  other-modules:
+    - Paths_checkers
 
 executables:
   checkers-exe:
     main:                Main.hs
     source-dirs:         app
+    other-modules:
+    - Paths_checkers
     ghc-options:
     - -threaded
     - -rtsopts

@@ -1,7 +1,7 @@
 module Main where
 
 import UI.Input (runGame)
-import Types.Game (GameMode(..), Difficulty(..))
+import Game.Mode (GameMode(..), Difficulty(..))
 import System.IO
 
 main :: IO ()

@@ -10,8 +10,10 @@ module Rules.Movement
       isValidMove
     , isValidDirection
     , getValidJumpMoves
-    , isWithinBoard
     , getValidMoves
+    , getAllPossibleMoves
+    , hasValidJumps
+    , getMultipleJumpMoves
     , updateBoard
     , movePiece
     ) where
@@ -20,83 +22,123 @@ import Board.Types (Player(..), PieceType(..), Piece(..), Position, Board)
 import Types.Game (GameState(..))
 import Data.Maybe (fromJust)
 
--- | Checks if a position is within the board boundaries (8x8)
-isWithinBoard :: Position -> Bool
-isWithinBoard (x, y) = x >= 0 && x < 8 && y >= 0 && y < 8
-
 -- | Checks if a move follows the piece's movement rules
 isValidDirection :: Piece -> Position -> Position -> Bool
 isValidDirection (Piece player pt) (fromX, fromY) (toX, toY) =
     let dy = toY - fromY
         dx = abs (toX - fromX)
-        validDirection = case player of
-            Black -> dy > 0  -- Black moves down
-            White -> dy < 0  -- White moves up
     in case pt of
-        King -> dx == abs dy        -- Kings can move diagonally in any direction
-        Man -> validDirection && dx == abs dy  -- Men must move diagonally in their direction
+        King -> dx == abs dy  -- Kings can move diagonally in any direction
+        Man -> case player of
+            Black -> dy > 0 && dx == dy     -- Black men move down
+            White -> dy < 0 && dx == -dy    -- White men move up
+
+-- | Gets jump positions for a piece
+getJumpPositions :: Board -> Position -> Piece -> [Position]
+getJumpPositions inputBoard (x, y) (Piece player _) =
+    filter isValidJumpMove possibleJumps
+  where
+    isValidJumpMove (jumpX, jumpY) =
+        let midX = (x + jumpX) `div` 2
+            midY = (y + jumpY) `div` 2
+        in case (inputBoard !! y !! x, inputBoard !! midY !! midX, inputBoard !! jumpY !! jumpX) of
+            (Just (Piece currPlayer _), Just (Piece opponent _), Nothing) ->
+                currPlayer == player && opponent /= player
+            _ -> False
+    possibleJumps = [(x + 2, y + 2), (x - 2, y + 2),
+                     (x + 2, y - 2), (x - 2, y - 2)]
 
 -- | Checks if a move from one position to another is valid according to the rules
 isValidMove :: GameState -> Position -> Position -> Bool
-isValidMove (GameState b player _) from@(fromX, fromY) to@(toX, toY) =
-    case b !! fromY !! fromX of
+isValidMove (GameState inputBoard inputPlayer _) from@(fromX, fromY) to =
+    case inputBoard !! fromY !! fromX of
+        Just (Piece player _) ->
+            player == inputPlayer && 
+            to `elem` getValidMoves (GameState inputBoard inputPlayer (Just from)) from
         Nothing -> False
-        Just piece -> 
-            piecePlayer piece == player && 
-            isWithinBoard to && 
-            null (b !! toY !! toX) && 
-            isValidDirection piece from to
 
 -- | Updates a single position on the board with a new piece
 updateBoard :: Board -> Position -> Maybe Piece -> Board
-updateBoard boardState (x, y) newPiece =
-  take y boardState ++
-  [take x (boardState !! y) ++ [newPiece] ++ drop (x + 1) (boardState !! y)] ++
-  drop (y + 1) boardState
+updateBoard inputBoard (x, y) newPiece =
+  take y inputBoard ++
+  [take x (inputBoard !! y) ++ [newPiece] ++ drop (x + 1) (inputBoard !! y)] ++
+  drop (y + 1) inputBoard
 
 -- | Moves a piece from one position to another on the board.
 -- If it's a jump move, removes the captured piece.
 movePiece :: Board -> Position -> Position -> Board
-movePiece boardState (fromX, fromY) (toX, toY) =
-  let piece = fromJust (boardState !! fromY !! fromX)
-      newBoard = updateBoard boardState (fromX, fromY) Nothing
-      finalBoard = updateBoard newBoard (toX, toY) (Just piece)
+movePiece inputBoard (fromX, fromY) (toX, toY) =
+  let piece = fromJust (inputBoard !! fromY !! fromX)
+      boardWithRemovedPiece = updateBoard inputBoard (fromX, fromY) Nothing
+      boardWithMovedPiece = updateBoard boardWithRemovedPiece (toX, toY) (Just piece)
   in if abs (fromX - toX) == 2
-     then updateBoard finalBoard ((fromX + toX) `div` 2, (fromY + toY) `div` 2) Nothing
-     else finalBoard
+     then updateBoard boardWithMovedPiece ((fromX + toX) `div` 2, (fromY + toY) `div` 2) Nothing
+     else boardWithMovedPiece
 
--- | Gets all valid moves for a piece at a given position
-getValidMoves :: GameState -> Position -> [Position]
-getValidMoves gs@(GameState b' player' _) pos@(x, y) =
-    case b' !! y !! x of
-        Nothing -> []
-        Just piece ->
-            if piecePlayer piece /= player'
-                then []
-                else validMoves ++ validJumps
+-- | Gets all possible moves for the current player
+getAllPossibleMoves :: GameState -> [(Position, [Position])]
+getAllPossibleMoves gs@(GameState inputBoard inputPlayer _) = 
+    [(pos, getValidMoves gs pos) | pos <- allPiecesPositions]
   where
-    validMoves = filter (isValidMove gs pos) possibleMoves
-    validJumps = getValidJumpMoves b' pos player'
-    possibleMoves = [(x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]
+    allPiecesPositions = [(x, y) | x <- [0..7], y <- [0..7],
+                         case inputBoard !! y !! x of
+                             Just (Piece player _) -> player == inputPlayer
+                             Nothing -> False]
 
--- | Gets all valid jump moves from a position for a specific player
-getValidJumpMoves :: Board -> Position -> Player -> [Position]
-getValidJumpMoves b' pos@(x, y) player =
-    case b' !! y !! x of
-        Just piece@(Piece p _) | p == player -> 
-            [(x + 2 * dx, y + 2 * dy) |
-             dx <- [-1, 1], 
-             dy <- [-1, 1],
-             let jumpPos = (x + 2 * dx, y + 2 * dy),
-             isValidJump b' piece pos jumpPos]
-        _ -> []  -- Return empty list if no piece or wrong player's piece
-
--- | Checks if a jump move is valid
-isValidJump :: Board -> Piece -> Position -> Position -> Bool
-isValidJump b' piece from@(fromX, fromY) to@(toX, toY) =
-    isWithinBoard to &&
-    null (b' !! toY !! toX) &&  -- destination must be empty
-    isValidDirection piece from to &&
-    case b' !! ((fromY + toY) `div` 2) !! ((fromX + toX) `div` 2) of
-        Just (Piece p _) -> p /= piecePlayer piece  -- Must jump over opponent's piece
+-- | Checks if any piece has a valid jump move
+hasValidJumps :: GameState -> Bool
+hasValidJumps (GameState inputBoard inputPlayer _) =
+    any hasJumps [(x, y) | x <- [0..7], y <- [0..7]]
+  where
+    hasJumps pos@(x, y) = case inputBoard !! y !! x of
+        Just (Piece player _) | player == inputPlayer -> not $ null $ getValidJumpMoves inputBoard pos inputPlayer
         _ -> False
+
+-- | Gets all valid moves for a piece at the given position
+getValidMoves :: GameState -> Position -> [Position]
+getValidMoves gs@(GameState inputBoard inputPlayer _) pos@(x, y) =
+    case inputBoard !! y !! x of
+        Just piece@(Piece player _) | player == inputPlayer ->
+            if hasValidJumps gs
+                then getValidJumpMoves inputBoard pos inputPlayer
+                else getValidBasicMoves piece pos
+        _ -> []
+
+-- | Gets all valid jump moves for a piece
+getValidJumpMoves :: Board -> Position -> Player -> [Position]
+getValidJumpMoves inputBoard (x, y) inputPlayer =
+    case inputBoard !! y !! x of
+        Just piece@(Piece player _) | player == inputPlayer ->
+            getJumpPositions inputBoard (x, y) piece
+        _ -> []
+
+-- | Gets multiple jump moves for a piece
+getMultipleJumpMoves :: Board -> Position -> Player -> [[Position]]
+getMultipleJumpMoves inputBoard pos inputPlayer = 
+    case inputBoard !! snd pos !! fst pos of
+        Just piece ->
+            let jumpPositions = getJumpPositions inputBoard pos piece
+            in 
+                [ pos : (jumpPos : path) | 
+                  jumpPos <- jumpPositions,
+                  path <- getMultipleJumpMoves (movePiece inputBoard pos jumpPos) jumpPos inputPlayer]
+        Nothing -> []
+
+-- | Get all valid basic moves for a piece at a given position
+getValidBasicMoves :: Piece -> Position -> [Position]
+getValidBasicMoves (Piece player pType) (x, y) =
+    let 
+        direction = if player == White then 1 else -1
+        candidateMoves = 
+            case pType of
+                King -> 
+                    [ (x+dx, y+dy) 
+                    | dx <- [-1, 1]
+                    , dy <- [direction, -direction]
+                    ]
+                Man -> 
+                    [ (x+dx, y+direction) 
+                    | dx <- [-1, 1]
+                    ]
+        isValidPosition (nx, ny) = nx >= 0 && nx < 8 && ny >= 0 && ny < 8
+    in filter isValidPosition candidateMoves

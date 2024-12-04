@@ -16,27 +16,36 @@ import Rules.Movement (movePiece, getValidJumpMoves)
 import Rules.Promotion (promoteKings)
 
 -- | Gets the opposite player
-oppositePlayer :: Player -> Player
-oppositePlayer Black = White
-oppositePlayer White = Black
+-- Examples:
+--   switchPlayer Black = White
+--   switchPlayer White = Black
+switchPlayer :: Player -> Player
+switchPlayer Black = White
+switchPlayer White = Black
 
--- | Checks if a player can jump again after making a move
-canJumpAgain :: Board -> Position -> Player -> Bool
-canJumpAgain b' pos player' =
-    not . null $ getValidJumpMoves b' pos player'
+-- | Check if a piece can jump again
+-- Checks if the given board and position allow another jump
+canJumpAgain :: Board  -- ^ The current board state
+             -> Position  -- ^ The position to check for jumps
+             -> Player  -- ^ The current player
+             -> Bool
+canJumpAgain inputBoard inputPos inputPlayer =
+    not $ null $ getValidJumpMoves inputBoard inputPos inputPlayer
 
--- | Makes a move from one position to another.
--- If the move is valid:
---   1. Updates the board with the new piece position
---   2. Removes any captured pieces
---   3. Promotes pieces to kings if they reach the opposite side
---   4. Updates the current player
--- If the move is not valid, returns the original game state.
-makeMove :: GameState -> Position -> Position -> GameState
-makeMove (GameState b player _) from to =
-    let newBoard = movePiece b from to
-        promotedBoard = promoteKings newBoard
-        hasMoreJumps = canJumpAgain promotedBoard to player
-        newPlayer = if hasMoreJumps then player else oppositePlayer player
-        newSelected = if hasMoreJumps then Just to else Nothing
-    in GameState promotedBoard newPlayer newSelected
+-- | Make a move and update the game state
+-- Handles moving a piece, potential promotions, and player turns
+makeMove :: GameState  -- ^ The current game state
+         -> Position   -- ^ The starting position of the move
+         -> Position   -- ^ The destination position of the move
+         -> GameState  -- ^ The updated game state after the move
+makeMove (GameState inputBoard inputPlayer _) fromPos toPos =
+    let updatedBoard = movePiece inputBoard fromPos toPos
+        boardWithPromotions = promoteKings updatedBoard
+        canJumpMore = canJumpAgain boardWithPromotions toPos inputPlayer
+        nextPlayer = if canJumpMore 
+                    then inputPlayer  
+                    else switchPlayer inputPlayer  
+        newSelectedPiece = if canJumpMore
+                          then Just toPos    
+                          else Nothing    
+    in GameState boardWithPromotions nextPlayer newSelectedPiece

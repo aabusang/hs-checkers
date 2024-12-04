@@ -7,8 +7,8 @@ cabal-version: 2.2
 name:           checkers
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/checkers#readme>
-homepage:       https://github.com/githubuser/checkers#readme
-bug-reports:    https://github.com/githubuser/checkers/issues
+homepage:       https://github.com/aabusang/checkers#readme
+bug-reports:    https://github.com/aabusang/checkers/issues
 author:         Author name here
 maintainer:     example@example.com
 copyright:      2024 Author name here
@@ -21,13 +21,14 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/checkers
+  location: https://github.com/aabusang/checkers
 
 library
   exposed-modules:
       AI.AIPlayer
       Board.Construction
       Board.Types
+      Game.Mode
       Game.State
       Rules.Capture
       Rules.GameEnd
@@ -36,6 +37,7 @@ library
       Types.Game
       UI.Input
       UI.Rendering
+      UI.Shared
       UI.Types
   other-modules:
       Paths_checkers
