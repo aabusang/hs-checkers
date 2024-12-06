@@ -5,31 +5,23 @@
 -- This module contains types specific to the user interface,
 -- such as the UI state that combines game state with display options.
 
-module UI.Types
+module UI.Types 
     ( UIState(..)
     , initialUIState
-    , ScreenPosition
-    , BoardPosition
     ) where
 
-import Game.State (GameState(..), initialGameState)
-import Game.Mode (GameMode)
-import Board.Types (Position)
+import Types.Common (Position)
+import Types.Game (GameState(..))
 
--- | Screen coordinates as floating point numbers
-type ScreenPosition = (Float, Float)
-
--- | Board coordinates as integers (0-7, 0-7)
-type BoardPosition = Position
-
-
--- | The UI state containing the game state and mode
+-- | UI State for the game
 data UIState = UIState
-    { gameState :: GameState  -- ^ Current game state
-    , gameMode :: GameMode    -- ^ Current game mode (PvP or PvAI)
-    , selectedPosition :: Maybe Position  -- ^ Currently selected position for highlighting
+    { gameState :: GameState
+    , selectedPosition :: Maybe Position  -- ^ Currently selected piece position
     } deriving (Show)
 
 -- | Initial UI state
-initialUIState :: GameMode -> UIState
-initialUIState mode = UIState initialGameState mode Nothing
+initialUIState :: GameState -> UIState
+initialUIState gs = UIState
+    { gameState = gs
+    , selectedPosition = Nothing
+    }

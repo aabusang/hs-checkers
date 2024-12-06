@@ -1,35 +1,26 @@
 module UI.Input
-    ( runGame
+    ( handleInput
+    , runGame
     ) where
 
-import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import Board.Types (Piece(..), Board, Player(..), pieceOwner, PieceType(..))
+import Types.Common (Position)
+import Types.Game (GameState(..))  -- This gives us board and currentPlayer fields
+import Game.Mode (GameMode(..))
+import Game.State (makeMove, startNewGame, selectPiece)  -- Only import what's actually exported by Game.State
+import UI.Types (UIState(..), initialUIState)
+import UI.Shared (screenToBoardPosition, defaultConfig)
+import UI.Rendering (drawGameState, windowWidth, windowHeight)
 import Debug.Trace (trace)
 
-
-import UI.Types (UIState(..), initialUIState)
-import Game.State (GameState(..))
-import Board.Types (Position, Piece(..), Board, Player(..))
-import Game.Mode (GameMode(..))
-import Rules.Movement (getValidMoves)
-import Rules.Capture (makeMove)
-import qualified Game.State as GS
-import qualified UI.Rendering as Rendering
-import UI.Shared (screenToBoardPosition, defaultConfig)
-
 -- | Convert screen position to board position
--- convertMousePosition :: Point -> Maybe Position
--- convertMousePosition mousePos = 
---     screenToBoardPosition defaultConfig mousePos
-
 convertMousePosition :: Point -> Maybe Position
-convertMousePosition mousePos@(x, y) = 
+convertMousePosition mousePos = 
     trace ("Converting screen pos: " ++ show mousePos ++ 
            " to board pos: " ++ show converted) $
     converted
     where converted = screenToBoardPosition defaultConfig mousePos
-
-
 
 -- | Process mouse click on the board
 processMouseClick :: UIState -> Point -> UIState
@@ -39,22 +30,6 @@ processMouseClick uiState mousePos =
         Nothing -> uiState
 
 -- | Main input handler
--- handleInput :: UIState -> Event -> UIState
--- handleInput uiState event =
---     case event of
---         EventKey (MouseButton LeftButton) Down _ mousePos ->
---             processMouseClick uiState mousePos
---         _ -> uiState
-
--- handleInput :: UIState -> Event -> UIState
--- handleInput uiState event =
---     trace ("Event received: " ++ show event) $
---     case event of
---         EventKey (MouseButton LeftButton) Down _ mousePos ->
---             trace ("Left click at: " ++ show mousePos) $
---             processMouseClick uiState mousePos
---         _ -> uiState
-
 handleInput :: UIState -> Event -> UIState
 handleInput uiState event =
     case event of
@@ -66,22 +41,7 @@ handleInput uiState event =
         -- Ignore all other events (including EventMotion)
         _ -> uiState
 
-
 -- | Handle mouse click based on current game state
--- handleMouseClick :: Position -> UIState -> UIState
--- handleMouseClick pos uiState =
---     if isPositionSelected uiState
---     then handleMovement uiState pos
---     else handleSelection uiState pos
-
--- handleMouseClick :: Position -> UIState -> UIState
--- handleMouseClick pos uiState =
---     trace ("handleMouseClick called with pos: " ++ show pos) $
---     if isPositionSelected uiState
---     then handleMovement uiState pos
---     else trace ("Attempting selection at: " ++ show pos) $
---          handleSelection uiState pos
-
 handleMouseClick :: Position -> UIState -> UIState
 handleMouseClick pos uiState =
     trace ("handleMouseClick called with pos: " ++ show pos ++ 
@@ -90,88 +50,58 @@ handleMouseClick pos uiState =
     then trace "Handling movement" $ handleMovement uiState pos
     else trace "Handling selection" $ handleSelection uiState pos
 
-
 -- | Check if a position is currently selected
 isPositionSelected :: UIState -> Bool
 isPositionSelected uiState = selectedPosition uiState /= Nothing
 
 -- | Get piece at board position
 getPieceAt :: Board -> Position -> Maybe Piece
-getPieceAt board (x, y) = board !! y !! x
+getPieceAt boardState (x, y) = boardState !! y !! x
+
+-- | Format board for debug output
+formatBoardState :: Board -> String
+formatBoardState boardState = 
+    unlines [ concat [ case piece of
+                        Nothing -> "_"
+                        Just (Piece Black _) -> "b"
+                        Just (Piece White _) -> "w"
+                    | piece <- row ]
+            | row <- boardState ]
+
+-- | Format piece for debug output
+formatPiece :: Piece -> String
+formatPiece (Piece owner _) = case owner of
+    Black -> "b"
+    White -> "w"
 
 -- | Handle piece selection
--- handleSelection :: UIState -> Position -> UIState
--- handleSelection uiState pos =
---     let gs = gameState uiState
---         board = currentBoard gs
---         piece = getPieceAt board pos
---     in case piece of
---         Just _ -> trySelectPiece uiState gs pos
---         Nothing -> uiState
-
--- handleSelection :: UIState -> Position -> UIState
--- handleSelection uiState pos =
---     trace ("handleSelection called with pos: " ++ show pos) $
---     let gs = gameState uiState
---         board = currentBoard gs
---         piece = getPieceAt board pos
---     in case piece of
---         Just p -> trace ("Found piece: " ++ show p) $ 
---                  trySelectPiece uiState gs pos
---         Nothing -> trace "No piece found" uiState
-
--- handleSelection :: UIState -> Position -> UIState
--- handleSelection uiState pos =
---     trace ("handleSelection called with pos: " ++ show pos) $
---     let gs = gameState uiState
---         board = currentBoard gs
---         piece = getPieceAt board pos
---     in case piece of
---         Just p -> 
---             if piecePlayer p == currentPlayer gs
---             then trace ("Selected piece: " ++ show p) $ 
---                  trySelectPiece uiState gs pos
---             else trace "Wrong player's piece" uiState
---         Nothing -> trace "No piece found" uiState
-
 handleSelection :: UIState -> Position -> UIState
 handleSelection uiState pos =
-    trace ("Board state at selection:\n" ++ 
-           show (currentBoard (gameState uiState))) $
     let gs = gameState uiState
-        board = currentBoard gs
-        piece = getPieceAt board pos
-    in case piece of
-        Just p -> 
-            if piecePlayer p == currentPlayer gs
-            then trace ("Selected piece: " ++ show p) $ 
-                 trySelectPiece uiState gs pos
-            else trace ("Wrong player's piece (current player: " ++ 
-                       show (currentPlayer gs) ++ ")") uiState
-        Nothing -> trace "No piece found" uiState
-
+    in trace ("Board state:\n" ++ formatBoardState (board gs)) $
+       let currentBoard = board gs
+           piece = getPieceAt currentBoard pos
+       in case piece of
+           Just p -> 
+               if pieceOwner p == currentPlayer gs
+               then trace ("Selected: " ++ formatPiece p) $ 
+                    trySelectPiece uiState gs pos
+               else trace ("Wrong player's piece (current: " ++ 
+                          formatPiece (Piece (currentPlayer gs) Man) ++ ")") uiState
+           Nothing -> trace "No piece found" uiState
 
 -- | Try to select a piece based on game rules
--- trySelectPiece :: UIState -> GameState -> Position -> UIState
--- trySelectPiece uiState inputGameState pos =
---     case GS.selectPiece inputGameState pos of
---         Just newGameState -> 
---             uiState { gameState = newGameState, selectedPosition = Just pos }
---         Nothing -> uiState
-
 trySelectPiece :: UIState -> GameState -> Position -> UIState
 trySelectPiece uiState gs pos =
     trace ("Trying to select piece at: " ++ show pos) $
-    uiState { selectedPosition = Just pos }
+    case selectPiece gs pos of
+        Just newGameState -> 
+            uiState { gameState = newGameState
+                   , selectedPosition = Just pos }
+        Nothing -> 
+            trace "Selection failed" uiState
 
 -- | Handle piece movement
--- handleMovement :: UIState -> Position -> UIState
--- handleMovement uiState targetPos =
---     case selectedPosition uiState of
---         Nothing -> uiState
---         Just fromPos -> tryMove uiState fromPos targetPos
-
--- Modify handleMovement to add tracing
 handleMovement :: UIState -> Position -> UIState
 handleMovement uiState targetPos =
     trace ("HandleMovement called with targetPos: " ++ show targetPos) $
@@ -181,30 +111,22 @@ handleMovement uiState targetPos =
                        tryMove uiState fromPos targetPos
 
 -- | Try to move a piece
--- tryMove :: UIState -> Position -> Position -> UIState
--- tryMove uiState fromPos toPos =
---     let gs = gameState uiState
---     in if toPos `elem` getValidMoves gs fromPos
---        then makeValidMove uiState gs fromPos toPos
---        else clearSelection uiState
-
 tryMove :: UIState -> Position -> Position -> UIState
 tryMove uiState fromPos toPos =
     let gs = gameState uiState
-        validMoves = getValidMoves gs fromPos
-    in trace ("Valid moves: " ++ show validMoves) $
-       if toPos `elem` validMoves
-       then trace "Making valid move" $ makeValidMove uiState gs fromPos toPos
-       else trace "Invalid move - clearing selection" $ clearSelection uiState
-
-
+    in trace ("Attempting move from " ++ show fromPos ++ " to " ++ show toPos) $
+       makeValidMove uiState gs fromPos toPos
 
 -- | Execute a valid move
 makeValidMove :: UIState -> GameState -> Position -> Position -> UIState
 makeValidMove uiState gs fromPos toPos =
-    uiState { gameState = makeMove gs fromPos toPos
-           , selectedPosition = Nothing 
-           }
+    case makeMove gs fromPos toPos of
+        Just newGameState -> 
+            uiState { gameState = newGameState
+                   , selectedPosition = Nothing 
+                   }
+        Nothing -> 
+            trace "Move failed" $ clearSelection uiState
 
 -- | Clear the current selection
 clearSelection :: UIState -> UIState
@@ -216,45 +138,25 @@ updateGame _ state = state
 
 -- | Render game state
 renderGame :: UIState -> Picture
-renderGame = Rendering.drawGameState
+renderGame = drawGameState
 
 -- | Handle input events (note the argument order)
 handleInputEvent :: Event -> UIState -> UIState
 handleInputEvent event state = handleInput state event
 
-
 debugPrintBoard :: Board -> IO ()
-debugPrintBoard board = 
-    putStrLn $ unlines 
-        [ concat [ case piece of
-                    Nothing -> "."
-                    Just (Piece Black _) -> "b"
-                    Just (Piece White _) -> "w"
-                | piece <- row ]
-        | row <- board ]
-
+debugPrintBoard = putStr . formatBoardState
 
 -- | Run the game
--- runGame :: GameMode -> IO ()
--- runGame mode = 
---     play window backgroundColor fps initialState renderGame handleInputEvent updateGame
---     where
---         window = InWindow "HaskellCheckers" 
---                          (Rendering.windowWidth, Rendering.windowHeight) 
---                          (10, 10)
---         fps = 30
---         initialState = initialUIState mode
---         backgroundColor = white
-
--- Modify runGame to print initial board state
 runGame :: GameMode -> IO ()
-runGame mode = do
-    let initialState = initialUIState mode
-    debugPrintBoard (currentBoard $ gameState initialState)
+runGame _mode = do
+    let gs = startNewGame
+        initialState = initialUIState gs
+    debugPrintBoard (board $ gameState initialState)
     play window backgroundColor fps initialState renderGame handleInputEvent updateGame
     where
         window = InWindow "HaskellCheckers" 
-                         (Rendering.windowWidth, Rendering.windowHeight) 
+                         (windowWidth, windowHeight) 
                          (10, 10)
         fps = 30
         backgroundColor = white

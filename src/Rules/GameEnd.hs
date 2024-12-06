@@ -6,55 +6,111 @@
 -- such as when a player has no valid moves remaining.
 
 module Rules.GameEnd
-    ( isGameOver
-    , getWinner
+    ( -- * Game Status
+      updateGameStatus
+    , isGameOver
+      -- * Player Status
+    , hasValidMoves
+    , countPieces
     ) where
 
-import Board.Types (Player(..))
-import Types.Game (GameState(..))  
-import Rules.Movement (getValidMoves)
+import Board.Types (Player(..), Board, Piece(..))
+import Board.Operations (getPieceAt)
 
--- | Determine if the game is over by checking if the current player
--- has any possible moves left on the board.
--- 
--- A game is considered over when no pieces can be moved.
--- 
--- Example:
---   isGameOver initialGameState  -- False
---   isGameOver finalGameState    -- True
+import Types.Common (Position)
+import Types.Game (GameState(..), GameStatus(..))
+import Rules.Movement (getValidBasicMoves)
+import Rules.Capture (hasCaptureMoves)
+
+
+-- _________________________________ GAME STATUS _________________________________
+
+-- | Check if the game is over (either won or drawn)
 isGameOver :: GameState -> Bool
-isGameOver gameState = 
-    -- Create all board positions
-    let boardPositions = [(x, y) | x <- [0..7], y <- [0..7]]
-        
-        -- Get valid moves for each board position
-        validMovesPerPosition = map (getValidMoves gameState) boardPositions
-    
-    -- If ALL positions have NO valid moves, the game is over
-    in all null validMovesPerPosition
+isGameOver GameState{gameStatus = status} = 
+    case status of
+        Ongoing -> False
+        _ -> True
 
--- | Determine the winner of the game.
--- 
--- Returns:
---   * 'Just' the winning player if the game is over
---   * 'Nothing' if the game is still in progress
--- 
--- The winner is the opposite of the current player 
--- when no moves are possible.
--- 
--- Example:
---   getWinner finalGameState  -- Just White
---   getWinner initialGameState  -- Nothing
-getWinner :: GameState -> Maybe Player
-getWinner gameState
-    | isGameOver gameState = Just $ switchPlayer (extractCurrentPlayer gameState)
-    | otherwise            = Nothing
+-- | Update the game status based on current board state
+updateGameStatus :: GameState -> GameState
+updateGameStatus gameState =
+    let currPlayer = currentPlayer gameState
+        newStatus = determineGameStatus gameState currPlayer
+    in gameState { gameStatus = newStatus }
+
+-- | Determine the current status of the game
+determineGameStatus :: GameState -> Player -> GameStatus
+determineGameStatus gameState player
+    | isDraw gameState = Draw
+    | not (hasValidMoves gameState) = Won (switchPlayer player)
+    | otherwise = Ongoing
+
+-- | Check if the game is a draw. A game is drawn when either:
+-- 1. No captures have been made in the last 40 moves
+-- 2. Only one king remains for each player (no winning possible)
+isDraw :: GameState -> Bool
+isDraw gameState = 
+    hasReachedMoveLimit (movesSinceCapture gameState) || 
+    isKingVsKingStalemate (board gameState)
+
+-- | Check if we've reached the 40-move limit without captures
+hasReachedMoveLimit :: Int -> Bool
+hasReachedMoveLimit moves = moves >= 40
+
+-- | Check if only one king remains for each player, resulting in a stalemate
+isKingVsKingStalemate :: Board -> Bool
+isKingVsKingStalemate currentBoard = 
+    case countPieces currentBoard of
+        (1, 1) -> True  -- One piece each
+        _ -> False      -- More pieces remain
+
+
+-- _________________________________ PLAYER STATUS _________________________________
+
+-- | Check if the current player has any valid moves
+hasValidMoves :: GameState -> Bool
+hasValidMoves (GameState gameBoard player _ _ _ _) =
+    any (hasMovesFromPosition gameBoard player) allPlayerPieces
   where
-    -- Extract current player from game state
-    extractCurrentPlayer :: GameState -> Player
-    extractCurrentPlayer (GameState _ player _) = player
+    allPlayerPieces = getPlayerPieces gameBoard player
 
-    -- Switch the current player (determines the winner)
-    switchPlayer :: Player -> Player
-    switchPlayer Black = White
-    switchPlayer White = Black
+-- | Check if a player has any moves from a position
+hasMovesFromPosition :: Board -> Player -> Position -> Bool
+hasMovesFromPosition gameBoard player pos =
+    case getPieceAt gameBoard pos of
+        Just piece -> isPlayersPiece piece player && hasPieceMoves gameBoard piece pos
+        Nothing -> False
+
+
+-- | Check if a piece belongs to a player
+isPlayersPiece :: Piece -> Player -> Bool
+isPlayersPiece (Piece owner _) player = owner == player
+
+-- | Check if a piece has any valid moves (captures or basic moves)
+hasPieceMoves :: Board -> Piece -> Position -> Bool
+hasPieceMoves gameBoard piece pos = 
+    hasCaptureMoves gameBoard pos (pieceOwner piece) ||  -- Must take captures if available
+    not (null (getValidBasicMoves piece pos))        -- Or any basic moves
+
+-- | Count how many pieces each player has
+-- Returns a tuple of (Black pieces, White pieces)
+countPieces :: Board -> (Int, Int)
+countPieces gameBoard = 
+    (length $ getPlayerPieces gameBoard Black, length $ getPlayerPieces gameBoard White)
+
+
+-- _________________________________ HELPER FUNCTIONS _________________________________
+
+-- | Get all positions with a player's pieces
+getPlayerPieces :: Board -> Player -> [Position]
+getPlayerPieces gameBoard player = 
+    [(row, col) | row <- [0..7], col <- [0..7],
+     case gameBoard !! row !! col of
+         Just (Piece p _) -> p == player
+         Nothing -> False]
+
+-- | Switch to the other player
+switchPlayer :: Player -> Player
+switchPlayer Black = White
+switchPlayer White = Black

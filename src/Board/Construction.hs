@@ -9,12 +9,13 @@ module Board.Construction
     ( initialBoard
     , emptyBoard
     , standardGameSetup
-    , isValidPosition
     , placePiece
     , removePiece
     ) where
 
 import Board.Types (Board, Piece(..), Player(..), PieceType(..))
+import Board.Validation (isValidBoardPosition)
+import Types.Common (Position)
 
 -- | Creates an empty 8x8 board
 emptyBoard :: Board
@@ -40,24 +41,20 @@ initialBoard = [
 standardGameSetup :: (Board, Player)
 standardGameSetup = (initialBoard, Black)
 
--- | Checks if a position is within the bounds of the board (8x8)
-isValidPosition :: (Int, Int) -> Bool
-isValidPosition (x, y) = x >= 0 && x < 8 && y >= 0 && y < 8
-
 -- | Places a piece at the specified position on the board
 -- Returns the original board if the position is invalid
-placePiece :: (Int, Int) -> Piece -> Board -> Board
+placePiece :: Position -> Piece -> Board -> Board
 placePiece (x, y) piece board
-    | not (isValidPosition (x, y)) = board
+    | not (isValidBoardPosition (x, y)) = board
     | otherwise = take x board ++ 
                  [take y (board !! x) ++ [Just piece] ++ drop (y + 1) (board !! x)] ++ 
                  drop (x + 1) board
 
 -- | Removes a piece from the specified position
 -- Returns the original board if the position is invalid
-removePiece :: (Int, Int) -> Board -> Board
+removePiece :: Position -> Board -> Board
 removePiece (x, y) board
-    | not (isValidPosition (x, y)) = board
+    | not (isValidBoardPosition (x, y)) = board
     | otherwise = take x board ++ 
                  [take y (board !! x) ++ [Nothing] ++ drop (y + 1) (board !! x)] ++ 
                  drop (x + 1) board

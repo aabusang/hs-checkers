@@ -27,13 +27,17 @@ library
   exposed-modules:
       AI.AIPlayer
       Board.Construction
+      Board.Operations
       Board.Types
+      Board.Validation
       Game.Mode
       Game.State
       Rules.Capture
       Rules.GameEnd
+      Rules.Jumps
       Rules.Movement
       Rules.Promotion
+      Types.Common
       Types.Game
       UI.Input
       UI.Rendering
