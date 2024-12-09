@@ -39,7 +39,14 @@ library
       Rules.Promotion
       Types.Common
       Types.Game
+      UI.Animation
+      UI.Board
+      UI.Config
+      UI.Controller
+      UI.Conversion
+      UI.Game
       UI.Input
+      UI.Piece
       UI.Rendering
       UI.Shared
       UI.Types

@@ -21,20 +21,20 @@ import Types.Common (Position)
 emptyBoard :: Board
 emptyBoard = replicate 8 (replicate 8 Nothing)
 
--- | Creates the initial checker board setup with pieces on dark squares.
+-- | Creates the initial checker board setup with all pieces on dark squares (where x + y is even).
 initialBoard :: Board
 initialBoard = [
-    -- White pieces (top)
-    [Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man)],
-    [Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing],
-    [Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man)],
+    -- Black pieces (top)
+    [Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing],
+    [Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man)],
+    [Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing],
     -- Empty middle
     [Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing],
     [Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing],
-    -- Black pieces (bottom)
-    [Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing],
-    [Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man)],
-    [Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing, Just (Piece Black Man), Nothing]
+    -- White pieces (bottom)
+    [Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man)],
+    [Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing],
+    [Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man), Nothing, Just (Piece White Man)]
     ]
 
 -- | Creates a standard game setup with initial board and Black as starting player
@@ -46,15 +46,15 @@ standardGameSetup = (initialBoard, Black)
 placePiece :: Position -> Piece -> Board -> Board
 placePiece (x, y) piece board
     | not (isValidBoardPosition (x, y)) = board
-    | otherwise = take x board ++ 
-                 [take y (board !! x) ++ [Just piece] ++ drop (y + 1) (board !! x)] ++ 
-                 drop (x + 1) board
+    | otherwise = take y board ++ 
+                 [take x (board !! y) ++ [Just piece] ++ drop (x + 1) (board !! y)] ++ 
+                 drop (y + 1) board
 
 -- | Removes a piece from the specified position
 -- Returns the original board if the position is invalid
 removePiece :: Position -> Board -> Board
 removePiece (x, y) board
     | not (isValidBoardPosition (x, y)) = board
-    | otherwise = take x board ++ 
-                 [take y (board !! x) ++ [Nothing] ++ drop (y + 1) (board !! x)] ++ 
-                 drop (x + 1) board
+    | otherwise = take y board ++
+                 [take x (board !! y) ++ [Nothing] ++ drop (x + 1) (board !! y)] ++
+                 drop (y + 1) board

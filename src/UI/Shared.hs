@@ -1,94 +1,65 @@
--- | Module for shared UI constants and coordinate handling
+-- |
+-- Module      : UI.Shared
+-- Description : Shared UI utilities for coordinate conversion
 module UI.Shared 
-    ( BoardConfig(..)
-    , defaultConfig
-    , screenToBoardPosition
+    ( screenToBoardPosition
     , boardToScreenPosition
     ) where
 
-import Types.Common (Position, ScreenPosition)
+import UI.Types (UIPosition, UIScreenPos, UIPiece, uiPlayer)
+import UI.Config (BoardConfig(..), boardConfig)
 import Board.Validation (isValidBoardPosition)
+import Debug.Trace (trace)
 
--- | Configuration for board rendering and input
-data BoardConfig = BoardConfig 
-    { squareSize :: Float      -- ^ Size of each board square in pixels
-    , scaleFactor :: Float     -- ^ Global scale factor for UI
-    , offsetX    :: Float      -- ^ X offset from window edge in pixels
-    , offsetY    :: Float      -- ^ Y offset from window edge in pixels
-    , boardStart :: Int        -- ^ Starting coordinate for board (usually 0)
-    , boardEnd   :: Int        -- ^ Ending coordinate for board (usually 7)
-    , snapTolerance :: Float   -- ^ How close to a square boundary to snap (0.0 to 1.0)
-    }
+-- | Get board dimensions in pixels
+getBoardPixelSize :: BoardConfig -> Float
+getBoardPixelSize config = 8 * squareSize config * scaleFactor config
 
--- | Default configuration values
-defaultConfig :: BoardConfig
-defaultConfig = BoardConfig 
-    { squareSize = 75          -- Each square is 75 pixels
-    , scaleFactor = 1.0        -- No scaling
-    , offsetX    = 275         -- Center horizontally 
-    , offsetY    = 275         -- Center vertically
-    , boardStart = 0           -- Board starts at 0
-    , boardEnd   = 7           -- Board ends at 7 (8x8 board)
-    , snapTolerance = 0.3      -- Snap when within 30% of square boundary
-    }
-
--- | Scale a measurement based on the config's scale factor
-applyScale :: BoardConfig -> Float -> Float
-applyScale config value = value * scaleFactor config
-
--- | Get the scaled square size
-getScaledSquareSize :: BoardConfig -> Float
-getScaledSquareSize config = applyScale config (squareSize config)
-
--- | Get scaled offsets
-getScaledOffsets :: BoardConfig -> (Float, Float)
-getScaledOffsets config = 
-    ( applyScale config (offsetX config)
-    , applyScale config (offsetY config)
-    )
-
--- | Convert raw screen coordinates to relative board coordinates
-screenToRelative :: BoardConfig -> ScreenPosition -> (Float, Float)
-screenToRelative config (x, y) =
-    let scaledSquare = getScaledSquareSize config
-        (scaledX, scaledY) = getScaledOffsets config
-    in ( (x + scaledX) / scaledSquare
-       , (y + scaledY) / scaledSquare
-       )
-
--- | Convert relative coordinates to board position, handling snap-to-grid
-relativeToBoard :: BoardConfig -> (Float, Float) -> Position
-relativeToBoard config (relX, relY) =
-    let x = floor relX
-        lastRow = boardEnd config
-        y = floor (fromIntegral lastRow - relY)  -- Simplified y calculation
-    in (x, y)
+-- | Get the center offset for the entire board
+getBoardCenterOffset :: BoardConfig -> (Float, Float)
+getBoardCenterOffset config =
+    let boardSize = getBoardPixelSize config
+    in (offsetX config - boardSize/2, offsetY config - boardSize/2)  -- Center the board in window with offsets
 
 -- | Convert screen coordinates to board position
-screenToBoardPosition :: BoardConfig -> ScreenPosition -> Maybe Position
-screenToBoardPosition config screenPos =
-    let boardPos = (relativeToBoard config . screenToRelative config) screenPos
-    in if isValidBoardPosition boardPos
-       then Just boardPos
+screenToBoardPosition :: [[Maybe UIPiece]] -> UIScreenPos -> Maybe UIPosition
+screenToBoardPosition board (screenX, screenY) =
+    let config = boardConfig
+        sqSize = squareSize config * scaleFactor config
+        (centerX, centerY) = getBoardCenterOffset config
+        
+        -- Convert screen coordinates relative to board's top-left
+        relX = screenX - centerX
+        relY = screenY - centerY
+        
+        -- Convert to board coordinates (0-7) using round instead of floor
+        -- This provides better handling of clicks near square edges
+        row = round (relY / sqSize)
+        col = round (relX / sqSize)
+        
+        pos = (row, col)
+        
+        -- Get piece information for debugging
+        pieceInfo = case (if isValidBoardPosition pos 
+                         then (board !! row) !! col
+                         else Nothing) of
+            Just piece -> " Piece: " ++ show (uiPlayer piece)
+            Nothing -> " No piece"
+        
+        -- Debug output
+        debug = "Screen: (" ++ show screenX ++ "," ++ show screenY ++ 
+                ") Rel: (" ++ show relX ++ "," ++ show relY ++ 
+                ") Board: " ++ show pos ++ pieceInfo
+    in trace debug $ 
+       if isValidBoardPosition pos
+       then Just pos
        else Nothing
 
--- | Convert board coordinates to relative screen position
-boardToRelative :: BoardConfig -> Position -> (Float, Float)
-boardToRelative config (x, y) =
-    ( fromIntegral x
-    , fromIntegral (boardEnd config - y)
-    )
-
--- | Convert relative position to screen coordinates
-relativeToScreen :: BoardConfig -> (Float, Float) -> ScreenPosition
-relativeToScreen config (relX, relY) =
-    let scaledSquare = getScaledSquareSize config
-        (scaledX, scaledY) = getScaledOffsets config
-    in ( relX * scaledSquare - scaledX
-       , relY * scaledSquare - scaledY
-       )
-
 -- | Convert board position to screen coordinates
-boardToScreenPosition :: BoardConfig -> Position -> ScreenPosition
-boardToScreenPosition config = 
-    relativeToScreen config . boardToRelative config
+boardToScreenPosition :: BoardConfig -> UIPosition -> UIScreenPos
+boardToScreenPosition config (x, y) =
+    let sqSize = squareSize config * scaleFactor config
+        (centerX, centerY) = getBoardCenterOffset config
+    in ( fromIntegral x * sqSize + centerX
+       , fromIntegral y * sqSize + centerY
+       )

@@ -15,76 +15,76 @@ module UI.Rendering
 -- External imports
 import Graphics.Gloss
 
--- Game types
-import Board.Types (Player(..), Piece(..), Board)
-import Types.Common (Position)
-import Game.State (GameState(..))
-
 -- UI types and configuration
-import UI.Types (UIState(..))
-import UI.Shared 
-    ( BoardConfig(..)
-    , defaultConfig
-    , boardToScreenPosition
-    )
+import UI.Types
+import UI.Config (BoardConfig(..), boardConfig, PieceConfig(..), defaultPieceConfig, windowWidth, windowHeight)
+import UI.Shared (boardToScreenPosition)
+import UI.Board (squareColor)
 
--- | Window settings
-windowWidth, windowHeight :: Int
-windowWidth = 800
-windowHeight = 800
 
--- | Piece rendering configuration
-data PieceConfig = PieceConfig
-    { pieceScale :: Float  -- ^ Size of piece relative to square (0.0 to 1.0)
-    , highlightScale :: Float  -- ^ Size of highlight relative to piece (> 1.0)
-    }
+-- | Get the color for a piece
+pieceColor :: UIPiece -> Color
+pieceColor piece = case uiPlayer piece of
+    UIBlack -> makeColorI 40 40 40 255      -- Dark grey/black
+    UIWhite -> makeColorI 245 245 245 255   -- Off-white
 
--- | Default piece configuration
-defaultPieceConfig :: PieceConfig
-defaultPieceConfig = PieceConfig
-    { pieceScale = 0.4    -- Piece takes up 40% of square
-    , highlightScale = 1.2  -- Highlight is 20% larger than piece
-    }
+-- | Get a piece at a board position
+getPieceAt :: UIGameState -> UIPosition -> Maybe UIPiece
+getPieceAt gameState (row, col) = (uiBoard gameState) !! row !! col
 
 -- | Draw the checkered board squares
-drawSquares :: BoardConfig -> Picture
-drawSquares config =
-    pictures
-        [ translate screenX screenY $
-          color squareColor $
-          rectangleSolid squareWidth squareWidth
-        | x <- [boardStart config..boardEnd config]
-        , y <- [boardStart config..boardEnd config]
-        , let squareWidth = squareSize config * scaleFactor config
-        , let (screenX, screenY) = boardToScreenPosition config (x, y)
-        , let squareColor = if odd (x + y) 
-                           then light (greyN 0.5)  -- Light squares
-                           else dark (greyN 0.5)   -- Dark squares
+drawSquares :: Picture
+drawSquares =
+    let config = boardConfig
+        squareWidth = squareSize config * scaleFactor config
+    in pictures
+        [ translate screenPosX screenPosY $
+          pictures [
+              -- Base square
+              color (squareColor (row, col)) $
+              rectangleSolid squareWidth squareWidth,
+              -- Grid lines for better visibility
+              color (greyN 0.3) $
+              rectangleWire squareWidth squareWidth
+          ]
+        | row <- [0..7]
+        , col <- [0..7]
+        , let (screenPosX, screenPosY) = boardToScreenPosition config (row, col)
         ]
 
--- | Draw a single piece
-drawPiece :: BoardConfig -> PieceConfig -> Maybe Position -> Position -> Piece -> Picture
-drawPiece boardConfig pieceConfig maybeSelected pos (Piece player _) =
-    let (x, y) = boardToScreenPosition boardConfig pos
-        isSelected = maybeSelected == Just pos
-        baseColor = if player == Black then light red else dark blue
-        pieceColor = if isSelected then light yellow else baseColor
-        radius = squareSize boardConfig * scaleFactor boardConfig * pieceScale pieceConfig
-    in translate x y $ color pieceColor $ circleSolid radius
+-- | Draw a piece at a board position
+drawPiece :: UIPosition -> UIPiece -> Picture
+drawPiece pos piece =
+    let config = boardConfig
+        (screenX, screenY) = boardToScreenPosition config pos
+        pieceConfig = defaultPieceConfig
+        radius = squareSize config * scaleFactor config * pieceScale pieceConfig / 2
+    in translate screenX screenY $
+       color (pieceColor piece) $
+       circleSolid radius
 
--- | Draw all pieces on the board
-drawPieces :: BoardConfig -> PieceConfig -> Board -> Maybe Position -> [Picture]
-drawPieces boardConfig pieceConfig inputBoard maybeSelected =
-    [ drawPiece boardConfig pieceConfig maybeSelected (x, y) piece
-    | x <- [0..7]
-    , y <- [0..7]
-    , Just piece <- [inputBoard !! y !! x]
-    ]
-
--- | Draw the complete game state
+-- | Draw the game state
 drawGameState :: UIState -> Picture
-drawGameState (UIState gs selectedPos) =
-    pictures
-    [ drawSquares defaultConfig
-    , pictures $ drawPieces defaultConfig defaultPieceConfig (board gs) selectedPos
-    ]
+drawGameState state = 
+    pictures $
+        [ drawSquares
+        , drawPieces (gameState state)
+        , maybe blank drawHighlight (selectedPosition state)
+        ]
+  where
+    drawPieces gameState = pictures
+        [ maybe blank (drawPiece (row, col)) piece
+        | row <- [0..7]
+        , col <- [0..7]
+        , let piece = getPieceAt gameState (row, col)
+        ]
+    
+    drawHighlight position =
+        let config = boardConfig
+            (screenPosX, screenPosY) = boardToScreenPosition config position
+            pieceConfig = defaultPieceConfig
+            radius = squareSize config * scaleFactor config * 
+                    pieceScale pieceConfig * highlightScale pieceConfig / 2
+        in translate screenPosX screenPosY $
+           color (makeColor 1 1 0 0.3) $  -- Semi-transparent yellow
+           circleSolid radius
