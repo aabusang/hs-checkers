@@ -55,11 +55,28 @@ screenToBoardPosition board (screenX, screenY) =
        then Just pos
        else Nothing
 
--- | Convert board position to screen coordinates
+-- | Convert a board position to screen coordinates
+-- This function handles the transformation in these steps:
+-- 1. Calculate the size of each square on screen (includes scaling)
+-- 2. Get the board's center offset on screen
+-- 3. Transform grid coordinates to pixel coordinates
+-- 4. Apply the center offset to position the board correctly
 boardToScreenPosition :: BoardConfig -> UIPosition -> UIScreenPos
-boardToScreenPosition config (x, y) =
-    let sqSize = squareSize config * scaleFactor config
-        (centerX, centerY) = getBoardCenterOffset config
-    in ( fromIntegral x * sqSize + centerX
-       , fromIntegral y * sqSize + centerY
-       )
+boardToScreenPosition config pos =
+    let
+        -- Step 1: Calculate the actual size of each square on screen
+        squareSizeOnScreen = squareSize config * scaleFactor config
+        
+        -- Step 2: Get the board's offset from the window edge
+        (boardOffsetHorizontal, boardOffsetVertical) = getBoardCenterOffset config
+        
+        -- Step 3: Convert grid position to screen coordinates
+        (gridVertical, gridHorizontal) = pos  -- (row, col) where row is vertical, col is horizontal
+        pixelsFromLeftEdge   = fromIntegral gridHorizontal * squareSizeOnScreen
+        pixelsFromTopEdge    = fromIntegral gridVertical * squareSizeOnScreen
+        
+        -- Step 4: Apply the offset to center the board
+        screenHorizontal = pixelsFromLeftEdge + boardOffsetHorizontal
+        screenVertical   = pixelsFromTopEdge + boardOffsetVertical
+    in
+        (screenHorizontal, screenVertical)
