@@ -8,19 +8,20 @@
 -- * Making moves
 
 module Game.State
-    ( -- * Game State
-      GameState(..)
-    , initialGameState
-      -- * Game Actions
-    , selectPiece
+    ( -- * Game State Management
+      initialGameState
+    , createNewGameState
     , makeMove
-    , startNewGame
+    , selectPiece
+      -- * Game State Helpers
+    , pieceIsOwnedByCurrentPlayer
+    , switchPlayer
     ) where
 
+import Board.Types (Player(..), Piece(..), Board)
+import Board.Operations (getPieceAt, movePiece, removePiece)
 import Board.Construction (initialBoard)
-import Board.Types (Player(..), Piece(..))
-import Board.Operations (getPieceAt, movePiece)
-import Rules.Movement (getValidMoves, isValidMove)
+import Rules.Movement (getValidMoves, isValidMove, isCaptureMove, getCapturedPosition, getValidBasicMoves, getPossibleCaptures)
 import Types.Common (Position)
 import Types.Game (GameState(..), GameStatus(..))
 
@@ -45,13 +46,40 @@ startNewGame = initialGameState
 -- | Create a new game state after a successful move
 createNewGameState :: GameState -> Position -> Position -> GameState
 createNewGameState gameState fromPos toPos = 
-  gameState {
-    board            = movePiece (board gameState) fromPos toPos,
-    currentPlayer    = switchPlayer (currentPlayer gameState),
-    selectedPiecePos = Nothing,  -- Deselect the piece
-    validMoves       = []        -- Clear valid moves
- }
+    -- First move the piece
+    let currentBoard = board gameState
+        newBoard = movePiece currentBoard fromPos toPos
+        
+        -- If it's a capture move, remove the captured piece
+        finalBoard = if isCaptureMove fromPos toPos
+                    then 
+                        let capturedPos = getCapturedPosition fromPos toPos
+                        in removePiece capturedPos newBoard
+                    else newBoard
+    in gameState {
+        board = finalBoard,
+        currentPlayer = switchPlayer (currentPlayer gameState),
+        selectedPiecePos = Nothing,
+        validMoves = []
+    }
 
+
+-- | Check if any piece of the current player has a capture move available
+hasCaptureMoveAvailable :: GameState -> Bool
+hasCaptureMoveAvailable gameState =
+    let currentBoard = board gameState
+        playerPieces = [(row, col) | row <- [0..7], col <- [0..7],
+                       case getPieceAt currentBoard (row, col) of
+                           Just piece -> pieceOwner piece == currentPlayer gameState
+                           Nothing -> False]
+    in any (hasCaptureMove currentBoard) playerPieces
+
+-- | Check if a piece at the given position has any capture moves
+hasCaptureMove :: Board -> Position -> Bool
+hasCaptureMove currentBoard pos =
+    case getPieceAt currentBoard pos of
+        Just piece -> not $ null $ getPossibleCaptures currentBoard pos (pieceOwner piece)
+        Nothing -> False
 
 -- | Try to make a move from one position to another.
 -- Returns Nothing if:
@@ -64,18 +92,25 @@ createNewGameState gameState fromPos toPos =
 -- * Empty valid moves list
 makeMove :: GameState -> Position -> Position -> Maybe GameState
 makeMove gameState fromPos toPos = 
-    if Rules.Movement.isValidMove gameState fromPos toPos
-        then Just (createNewGameState gameState fromPos toPos)
-        else Nothing
-
+    let capturesAvailable = hasCaptureMoveAvailable gameState
+        isCapture = isCaptureMove fromPos toPos
+    in if capturesAvailable && not isCapture
+       then Nothing  -- Must make a capture move when available
+       else if Rules.Movement.isValidMove gameState fromPos toPos
+            then Just (createNewGameState gameState fromPos toPos)
+            else Nothing
 
 -- | Select piece if position is valid and is owned by current player
 selectPiece :: GameState -> Position -> Maybe GameState
 selectPiece gameState pos =
-    let maybePiece = getPieceAt (board gameState) pos
+    let currentBoard = board gameState
+        maybePiece = getPieceAt currentBoard pos
+        capturesAvailable = hasCaptureMoveAvailable gameState
     in case maybePiece of
         Just piece | pieceIsOwnedByCurrentPlayer gameState piece ->
-            Just $  gameState {
+            if capturesAvailable && not (hasCaptureMove currentBoard pos)
+            then Nothing  -- Must select a piece that can capture
+            else Just $ gameState {
                 selectedPiecePos = Just pos,
                 validMoves = getValidMoves gameState pos
             }

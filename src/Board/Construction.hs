@@ -10,7 +10,6 @@ module Board.Construction
     , emptyBoard
     , standardGameSetup
     , placePiece
-    , removePiece
     ) where
 
 import Board.Types (Board, Piece(..), Player(..), PieceType(..))
@@ -48,13 +47,4 @@ placePiece (x, y) piece board
     | not (isValidBoardPosition (x, y)) = board
     | otherwise = take y board ++ 
                  [take x (board !! y) ++ [Just piece] ++ drop (x + 1) (board !! y)] ++ 
-                 drop (y + 1) board
-
--- | Removes a piece from the specified position
--- Returns the original board if the position is invalid
-removePiece :: Position -> Board -> Board
-removePiece (x, y) board
-    | not (isValidBoardPosition (x, y)) = board
-    | otherwise = take y board ++
-                 [take x (board !! y) ++ [Nothing] ++ drop (x + 1) (board !! y)] ++
                  drop (y + 1) board

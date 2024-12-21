@@ -10,10 +10,12 @@ module Board.Operations
       getPieceAt
     , setPosition
     , movePiece
+    , removePiece
     ) where
 
 import Board.Types (Board, Piece)
 import Types.Common (Position)
+import Board.Validation (isValidBoardPosition)
 
 -- | Get a piece from the board at a given position
 getPieceAt :: Board -> Position -> Maybe Piece
@@ -35,3 +37,10 @@ movePiece board fromPos toPos =
         -- Then clear the old position
         finalBoard = setPosition boardWithNewPos fromPos Nothing
     in finalBoard
+
+-- | Remove a piece from the specified position
+-- Returns the original board if the position is invalid
+removePiece :: Position -> Board -> Board
+removePiece pos board
+    | not (isValidBoardPosition pos) = board
+    | otherwise = setPosition board pos Nothing

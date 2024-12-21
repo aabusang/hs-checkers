@@ -13,13 +13,16 @@ module Rules.Movement
     , getAllPossibleMoves
     , updateBoard
     , getValidBasicMoves
+    , isCaptureMove
+    , getCapturedPosition
+    , getPossibleCaptures
     ) where
 
 import Board.Types (Player(..), PieceType(..), Piece(..), Board)
-import Board.Validation (isValidBoardPosition, isEmpty)
+import Board.Validation (isValidBoardPosition, isEmpty, isOpponentPiece)
 import Board.Operations (getPieceAt, movePiece)
 import Rules.Jumps (getAllValidJumpMoves)
-import Rules.Capture (isCaptureMove)
+import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures)
 import Types.Common (Position)
 import Types.Game (GameState(..))
 
