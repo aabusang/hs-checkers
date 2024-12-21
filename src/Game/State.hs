@@ -22,10 +22,11 @@ module Game.State
     ) where
 
 import Board.Types (Player(..), Piece(..), Board)
-import Board.Operations (getPieceAt, movePiece, removePiece)
+import Board.Operations (getPieceAt, movePiece, removePiece, updatePiece)
 import Board.Construction (initialBoard)
 import Rules.Movement (getValidMoves, isValidMove)
 import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures)
+import Rules.Promotion (canBePromoted, promoteToKing)
 import Types.Common (Position)
 import Types.Game (GameState(..), GameStatus(..))
 
@@ -54,9 +55,17 @@ createNewGameState gameState fromPos toPos =
                         in removePiece capturedPos newBoard
                     else newBoard
 
+        -- Check if the piece should be promoted to king
+        promotedBoard = case getPieceAt finalBoard toPos of
+            Just piece@(Piece player _) ->
+                if canBePromoted player toPos
+                then updatePiece toPos (promoteToKing piece) finalBoard
+                else finalBoard
+            Nothing -> finalBoard  -- Should never happen
+
         -- Check if there are more captures available from the new position
         moreCaptures = if isCaptureMove fromPos toPos
-                      then not $ null $ getPossibleCaptures finalBoard toPos (currentPlayer gameState)
+                      then not $ null $ getPossibleCaptures promotedBoard toPos (currentPlayer gameState)
                       else False
 
         -- Only switch player if no more captures are available
@@ -66,7 +75,7 @@ createNewGameState gameState fromPos toPos =
 
         -- If there are more captures, only show moves from the current piece
         nextValidMoves = if moreCaptures
-                        then getPossibleCaptures finalBoard toPos (currentPlayer gameState)
+                        then getPossibleCaptures promotedBoard toPos (currentPlayer gameState)
                         else []
 
         -- Keep the piece selected if there are more captures
@@ -75,7 +84,7 @@ createNewGameState gameState fromPos toPos =
                          else Nothing
 
     in gameState {
-        board = finalBoard,
+        board = promotedBoard,
         currentPlayer = nextPlayer,
         selectedPiecePos = nextSelectedPos,
         validMoves = nextValidMoves

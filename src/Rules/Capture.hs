@@ -13,6 +13,8 @@ module Rules.Capture
     , getCapturedPosition
     , getPossibleCaptures
     , getMultiCaptures
+    , getManCaptures
+    , getKingCaptures
     ) where
 
 import Board.Types (Player(..), Board, Piece(..), PieceType(..))
@@ -45,25 +47,48 @@ getCapturedPosition fromPos toPos =
         capturedCol = (fromCol + toCol) `div` 2
     in (capturedRow, capturedCol)
 
--- | Get all possible single capture moves from a position
-getPossibleCaptures :: Board -> Position -> Player -> [Position]
-getPossibleCaptures board fromPos@(row, col) player =
-    case getPieceAt board fromPos of
-        Nothing -> []
-        Just (Piece _ _) ->  
-            let possibleCaptures = [ (row + 2, col + 2)  
-                                 , (row + 2, col - 2)  
-                                 , (row - 2, col + 2)  
-                                 , (row - 2, col - 2)  
-                                 ]
-            in filter (isValidCapture board fromPos player) possibleCaptures
+-- | Get all possible single capture moves from a position for a regular piece (man)
+getManCaptures :: Board -> Position -> Player -> [Position]
+getManCaptures board fromPos@(row, col) player =
+    let captureDirections = [(2, 2), (2, -2), (-2, 2), (-2, -2)]  -- All possible capture jumps
+        possibleCaptures = map (\(dRow, dCol) -> (row + dRow, col + dCol)) captureDirections
+        isValidManCapture toPos = 
+            isValidBoardPosition toPos 
+            && isEmpty board toPos  
+            && isOpponentPiece board (getCapturedPosition fromPos toPos) player
+    in filter isValidManCapture possibleCaptures
 
--- | Check if a capture move is valid
-isValidCapture :: Board -> Position -> Player -> Position -> Bool
-isValidCapture board fromPos player toPos =
-    isValidBoardPosition toPos 
-    && isEmpty board toPos  
-    && isOpponentPiece board (getCapturedPosition fromPos toPos) player
+-- | Get all possible single capture moves from a position for a king piece
+getKingCaptures :: Board -> Position -> Player -> [Position]
+getKingCaptures board (row, col) player =
+    let directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]  -- All diagonal directions
+        -- For each direction, look for opponent pieces and possible jumps
+        capturesInDirection (dRow, dCol) = 
+            -- Look at each position in this direction until we hit something or the board edge
+            let potentialJumps = [(row + i*dRow, col + i*dCol, row + (i+1)*dRow, col + (i+1)*dCol) 
+                                | i <- [1..6]]  -- One less than board size to allow for landing
+                validJumps = takeWhile (\(r1,c1,r2,c2) -> 
+                    isValidBoardPosition (r1,c1) && isValidBoardPosition (r2,c2)) potentialJumps
+                -- Find the first opponent piece and the empty space after it
+                findJump [] = Nothing
+                findJump ((r1,c1,r2,c2):rest) = 
+                    if isOpponentPiece board (r1,c1) player && isEmpty board (r2,c2)
+                    then Just (r2,c2)  -- Return the landing position
+                    else if isEmpty board (r1,c1)
+                         then findJump rest  -- Keep looking if square is empty
+                         else Nothing  -- Stop if we hit any other piece
+            in maybe [] (:[]) (findJump validJumps)
+    in concatMap capturesInDirection directions
+
+-- | Get all possible captures for a piece (either man or king)
+getPossibleCaptures :: Board -> Position -> Player -> [Position]
+getPossibleCaptures board pos player =
+    case getPieceAt board pos of
+        Nothing -> []
+        Just (Piece _ pisType) -> 
+            case pisType of
+                Man -> getManCaptures board pos player
+                King -> getKingCaptures board pos player
 
 -- | Get all possible multi-capture sequences from a position
 -- Returns a list of capture sequences, where each sequence is a list of positions

@@ -40,7 +40,7 @@ fromUIState :: UI.UIState -> Game.GameState
 fromUIState uiState = Game.GameState
     { Game.board = map (map (fmap fromUIPiece)) (UI.uiBoard $ UI.gameState uiState)
     , Game.currentPlayer = fromUIPlayer (UI.uiCurrentPlayer $ UI.gameState uiState)
-    , Game.selectedPiecePos = Nothing
+    , Game.selectedPiecePos = UI.selectedPosition uiState >>= \pos -> Just (fromUIPosition pos)
     , Game.validMoves = calculateValidMoves uiState
     , Game.gameStatus = Game.Ongoing
     , Game.movesSinceCapture = 0

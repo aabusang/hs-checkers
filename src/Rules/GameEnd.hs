@@ -79,7 +79,7 @@ hasValidMoves (GameState gameBoard player _ _ _ _) =
 hasMovesFromPosition :: Board -> Player -> Position -> Bool
 hasMovesFromPosition gameBoard player pos =
     case getPieceAt gameBoard pos of
-        Just piece -> isPlayersPiece piece player && hasPieceMoves gameBoard piece pos
+        Just piece -> isPlayersPiece piece player && hasPieceMoves (GameState gameBoard player undefined undefined undefined undefined) pos
         Nothing -> False
 
 
@@ -87,11 +87,14 @@ hasMovesFromPosition gameBoard player pos =
 isPlayersPiece :: Piece -> Player -> Bool
 isPlayersPiece (Piece owner _) player = owner == player
 
--- | Check if a piece has any valid moves (captures or basic moves)
-hasPieceMoves :: Board -> Piece -> Position -> Bool
-hasPieceMoves gameBoard piece pos = 
-    hasCaptureMoves gameBoard pos (pieceOwner piece) ||  -- Must take captures if available
-    not (null (getValidBasicMoves piece pos))        -- Or any basic moves
+-- | Check if a piece has any valid moves
+hasPieceMoves :: GameState -> Position -> Bool
+hasPieceMoves (GameState gameBoard _ _ _ _ _) pos =
+    case getPieceAt gameBoard pos of
+        Nothing -> False
+        Just piece -> 
+            hasCaptureMoves gameBoard pos (pieceOwner piece)  -- Check for captures
+            || not (null (getValidBasicMoves piece pos gameBoard))  -- Or any basic moves
 
 -- | Count how many pieces each player has
 -- Returns a tuple of (Black pieces, White pieces)

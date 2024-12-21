@@ -11,6 +11,7 @@ module Board.Operations
     , setPosition
     , movePiece
     , removePiece
+    , updatePiece
     ) where
 
 import Board.Types (Board, Piece)
@@ -44,3 +45,10 @@ removePiece :: Position -> Board -> Board
 removePiece pos board
     | not (isValidBoardPosition pos) = board
     | otherwise = setPosition board pos Nothing
+
+-- | Update a piece at the specified position with a new piece
+-- Returns the original board if the position is invalid
+updatePiece :: Position -> Piece -> Board -> Board
+updatePiece pos piece board
+    | not (isValidBoardPosition pos) = board
+    | otherwise = setPosition board pos (Just piece)

@@ -15,13 +15,12 @@ module Rules.Movement
     , getValidBasicMoves
     , isCaptureMove
     , getCapturedPosition
-    , getPossibleCaptures
     ) where
 
 import Board.Types (Player(..), PieceType(..), Piece(..), Board)
 import Board.Validation (isValidBoardPosition, isEmpty, isOpponentPiece)
 import Board.Operations (getPieceAt, movePiece)
-import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures, getMultiCaptures)
+import Rules.Capture (isCaptureMove, getCapturedPosition, getMultiCaptures)
 import Types.Common (Position)
 import Types.Game (GameState(..))
 
@@ -78,39 +77,45 @@ isBasicMove (fromRow, fromCol) (toRow, toCol) =
 -- | Get possible moves (diagonally forward) for a Man piece
 getManMoves :: Position -> Player -> [Position]
 getManMoves (row, col) player =
-    let dir   = playerDirection player
-        moves = [(row + dir, col - 1), (row + dir, col + 1)] 
+    let direction = case player of
+            Black -> -1  -- Black moves up (decreasing row)
+            White -> 1   -- White moves down (increasing row)
+        moves = [(row + direction, col + 1),
+                (row + direction, col - 1)]
     in filter isValidBoardPosition moves
 
 -- | Get possible moves for a King piece
-getKingMoves :: Position -> [Position]
-getKingMoves (row, col) =
-    let moves = [ (row + 1, col + 1)  -- down-right
-                , (row + 1, col - 1)  -- down-left
-                , (row - 1, col + 1)  -- up-right
-                , (row - 1, col - 1)  -- up-left
-                ]
-    in filter isValidBoardPosition moves
+getKingMoves :: Position -> Board -> [Position]
+getKingMoves (row, col) gameBoard =
+    let directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]  -- All diagonal directions
+        -- Get moves in one direction until blocked
+        movesInDirection (dRow, dCol) = 
+            let positions = [(row + i*dRow, col + i*dCol) | i <- [1..7]]
+                validPos = takeWhile isValidBoardPosition positions
+                -- Stop at first non-empty square
+                movesUntilBlocked = takeWhile (isEmpty gameBoard) validPos
+            in movesUntilBlocked
+    in concatMap movesInDirection directions
 
 -- | Get all valid basic moves for a piece at a given position
-getValidBasicMoves :: Piece -> Position -> [Position]
-getValidBasicMoves (Piece player pisType) pos =
-    case pisType of
+getValidBasicMoves :: Piece -> Position -> Board -> [Position]
+getValidBasicMoves (Piece player pieceType) pos gameBoard =
+    case pieceType of
         Man -> getManMoves pos player
-        King -> getKingMoves pos
+        King -> getKingMoves pos gameBoard
 
 -- | Get all valid moves for a piece at a position
 getValidMoves :: GameState -> Position -> [Position]
-getValidMoves (GameState gameBoard player _ _ _ _) pos =
+getValidMoves (GameState gameBoard currentPlayer _ _ _ _) pos =
     case getPieceAt gameBoard pos of
         Nothing -> []
         Just piece@(Piece owner _) ->
-            if owner /= player
+            if owner /= currentPlayer
             then []
             else
-                let basicMoves = getValidBasicMoves piece pos
+                let basicMoves = getValidBasicMoves piece pos gameBoard
                     -- Get all possible capture sequences
-                    captureSequences = getMultiCaptures gameBoard pos player
+                    captureSequences = getMultiCaptures gameBoard pos currentPlayer
                     -- Take the next position from each capture sequence
                     captureMoves = case captureSequences of
                         [] -> []
@@ -119,13 +124,13 @@ getValidMoves (GameState gameBoard player _ _ _ _) pos =
                     -- If captures are available, they are mandatory
                     if not (null captureMoves)
                     then captureMoves
-                    else filter (isEmpty gameBoard) basicMoves
+                    else basicMoves
 
 -- | Get all possible moves for all pieces of the current player
 getAllPossibleMoves :: GameState -> [(Position, [Position])]
-getAllPossibleMoves gameState@(GameState board currentPlayer _ _ _ _) =
+getAllPossibleMoves gameState@(GameState gameBoard player _ _ _ _) =
     let allPositions = [(r,c) | r <- [0..7], c <- [0..7]]
-        playerPositions = filter (isPieceOfPlayer board currentPlayer) allPositions
+        playerPositions = filter (isPieceOfPlayer gameBoard player) allPositions
     in map (\pos -> (pos, getValidMoves gameState pos)) playerPositions
 
 -- | Check if a position contains a piece belonging to the given player
