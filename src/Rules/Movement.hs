@@ -27,10 +27,10 @@ import Types.Game (GameState(..))
 -- _________________________________ DIRECTION VALIDATION _________________________________
 
 -- | Get the movement direction for a player
--- White moves down (+1), Black moves up (-1)
+-- White moves up (-1), Black moves down (+1)
 playerDirection :: Player -> Int
-playerDirection White = 1
-playerDirection Black = -1
+playerDirection White = -1
+playerDirection Black = 1
 
 -- | Check if a move is in the correct direction for a piece
 isValidDirection :: Piece -> Position -> Position -> Bool
@@ -38,8 +38,8 @@ isValidDirection (Piece player pisType) (fromRow, _) (toRow, _) =
     case pisType of
         King -> True  -- Kings can move in any direction
         Man  -> case player of
-            White -> toRow > fromRow  -- White moves down (increasing row)
-            Black -> toRow < fromRow  -- Black moves up (decreasing row)
+            White -> toRow < fromRow  -- White moves up (decreasing row)
+            Black -> toRow > fromRow  -- Black moves down (increasing row)
 
 
 -- _________________________________ MOVE VALIDATION _________________________________

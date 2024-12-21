@@ -10,17 +10,18 @@ module UI.Conversion
     , fromUIPiece
     ) where
 
-import qualified Types.Game as G
-import qualified Types.Common as C
-import qualified Board.Types as B
+import qualified Types.Game as Game
+import qualified Types.Common as Common
+import qualified Board.Types as Board
 import qualified UI.Types as UI
+import Rules.Movement (getValidMoves)
 
 -- | Convert game state to UI state
-toUIState :: G.GameState -> UI.UIState
-toUIState gs = UI.UIState
+toUIState :: Game.GameState -> UI.UIState
+toUIState gameState = UI.UIState
     { UI.gameState = UI.UIGameState
-        { UI.uiBoard = map (map (fmap toUIPiece)) (G.board gs)
-        , UI.uiCurrentPlayer = toUIPlayer (G.currentPlayer gs)
+        { UI.uiBoard = map (map (fmap toUIPiece)) (Game.board gameState)
+        , UI.uiCurrentPlayer = toUIPlayer (Game.currentPlayer gameState)
         }
     , UI.selectedPosition = Nothing
     , UI.hoverPosition = Nothing
@@ -28,55 +29,81 @@ toUIState gs = UI.UIState
     , UI.captureAnimation = 0.0
     }
 
+-- | Convert board from UI to game representation
+convertBoard :: [[Maybe UI.UIPiece]] -> Board.Board
+convertBoard = map (map (fmap fromUIPiece))
+
+-- | Create a temporary game state for move validation
+createTempGameState :: [[Maybe UI.UIPiece]] -> Board.Player -> Game.GameState
+createTempGameState board player = Game.GameState
+    { Game.board = convertBoard board
+    , Game.currentPlayer = player
+    , Game.selectedPiecePos = Nothing
+    , Game.validMoves = []
+    , Game.gameStatus = Game.Ongoing
+    , Game.movesSinceCapture = 0
+    }
+
+-- | Calculate valid moves for a selected position
+calculateValidMoves :: UI.UIState -> [Common.Position]
+calculateValidMoves uiState = 
+    case UI.selectedPosition uiState of
+        Nothing -> []
+        Just pos -> 
+            let board = UI.uiBoard $ UI.gameState uiState
+                player = fromUIPlayer $ UI.uiCurrentPlayer $ UI.gameState uiState
+                tempState = createTempGameState board player
+            in getValidMoves tempState (fromUIPosition pos)
+
 -- | Convert UI state to game state
-fromUIState :: UI.UIState -> G.GameState
-fromUIState uiState = G.GameState
-    { G.board = map (map (fmap fromUIPiece)) (UI.uiBoard $ UI.gameState uiState)
-    , G.currentPlayer = fromUIPlayer (UI.uiCurrentPlayer $ UI.gameState uiState)
-    , G.selectedPiecePos = fromUIPosition <$> UI.selectedPosition uiState
-    , G.validMoves = []  -- Will be recalculated by game logic
-    , G.gameStatus = G.Ongoing
-    , G.movesSinceCapture = 0  -- Reset on state conversion
+fromUIState :: UI.UIState -> Game.GameState
+fromUIState uiState = Game.GameState
+    { Game.board = convertBoard (UI.uiBoard $ UI.gameState uiState)
+    , Game.currentPlayer = fromUIPlayer (UI.uiCurrentPlayer $ UI.gameState uiState)
+    , Game.selectedPiecePos = fromUIPosition <$> UI.selectedPosition uiState
+    , Game.validMoves = calculateValidMoves uiState
+    , Game.gameStatus = Game.Ongoing
+    , Game.movesSinceCapture = 0
     }
 
 -- | Convert game position to UI position
-toUIPosition :: C.Position -> UI.UIPosition
+toUIPosition :: Common.Position -> UI.UIPosition
 toUIPosition = id
 
 -- | Convert UI position to game position
-fromUIPosition :: UI.UIPosition -> C.Position
+fromUIPosition :: UI.UIPosition -> Common.Position
 fromUIPosition = id
 
 -- | Convert game piece to UI piece
-toUIPiece :: B.Piece -> UI.UIPiece
-toUIPiece (B.Piece player pieceType) = UI.UIPiece
-    { UI.uiPlayer = toUIPlayer player
-    , UI.uiPieceType = toUIPieceType pieceType
+toUIPiece :: Board.Piece -> UI.UIPiece
+toUIPiece piece = UI.UIPiece
+    { UI.uiPlayer = toUIPlayer (Board.pieceOwner piece)
+    , UI.uiPieceType = toUIPieceType (Board.pieceType piece)
     }
 
 -- | Convert UI piece to game piece
-fromUIPiece :: UI.UIPiece -> B.Piece
-fromUIPiece piece = B.Piece
-    { B.pieceOwner = fromUIPlayer (UI.uiPlayer piece)
-    , B.pieceType = fromUIPieceType (UI.uiPieceType piece)
+fromUIPiece :: UI.UIPiece -> Board.Piece
+fromUIPiece piece = Board.Piece
+    { Board.pieceOwner = fromUIPlayer (UI.uiPlayer piece)
+    , Board.pieceType = fromUIPieceType (UI.uiPieceType piece)
     }
 
 -- | Convert game player to UI player
-toUIPlayer :: B.Player -> UI.UIPlayer
-toUIPlayer B.Black = UI.UIBlack
-toUIPlayer B.White = UI.UIWhite
+toUIPlayer :: Board.Player -> UI.UIPlayer
+toUIPlayer Board.Black = UI.UIBlack
+toUIPlayer Board.White = UI.UIWhite
 
 -- | Convert UI player to game player
-fromUIPlayer :: UI.UIPlayer -> B.Player
-fromUIPlayer UI.UIBlack = B.Black
-fromUIPlayer UI.UIWhite = B.White
+fromUIPlayer :: UI.UIPlayer -> Board.Player
+fromUIPlayer UI.UIBlack = Board.Black
+fromUIPlayer UI.UIWhite = Board.White
 
 -- | Convert game piece type to UI piece type
-toUIPieceType :: B.PieceType -> UI.UIPieceType
-toUIPieceType B.Man = UI.UIMan
-toUIPieceType B.King = UI.UIKing
+toUIPieceType :: Board.PieceType -> UI.UIPieceType
+toUIPieceType Board.Man = UI.UIMan
+toUIPieceType Board.King = UI.UIKing
 
 -- | Convert UI piece type to game piece type
-fromUIPieceType :: UI.UIPieceType -> B.PieceType
-fromUIPieceType UI.UIMan = B.Man
-fromUIPieceType UI.UIKing = B.King
+fromUIPieceType :: UI.UIPieceType -> Board.PieceType
+fromUIPieceType UI.UIMan = Board.Man
+fromUIPieceType UI.UIKing = Board.King
