@@ -33,8 +33,8 @@ defaultBoardConfig :: BoardConfig
 defaultBoardConfig = BoardConfig 
     { squareSize = 80          -- Each square is 80 pixels (for 8x8 board)
     , scaleFactor = 1.0        -- No scaling
-    , offsetX    = 50
-    , offsetY    = 50
+    , offsetX    = 10
+    , offsetY    = -10         
     , boardStart = 0         -- Board starts at 0
     , boardEnd   = 7           -- Board ends at 7 (8x8 board)
     -- , snapTolerance = 0.3      -- Snap when within 30% of square boundary
@@ -65,7 +65,7 @@ windowHeight = 800
 
 -- | Window position on screen
 windowPosX, windowPosY :: Int
-windowPosX = 600  -- Initial X position of window on screen
+windowPosX = 300  -- Initial X position of window on screen
 windowPosY = 100  -- Initial Y position of window on screen
 
 -- | Frames per second
