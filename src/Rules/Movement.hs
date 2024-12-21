@@ -63,8 +63,9 @@ isValidPieceMove piece gameBoard player fromPos toPos =
     && isValidBoardPosition toPos                -- Must be within board
     && isEmpty gameBoard toPos                   -- Destination must be empty
     && isValidDirection piece fromPos toPos      -- Must move in valid direction
-    && (isBasicMove fromPos toPos           -- Must be either basic move
-        || isCaptureMove fromPos toPos)      -- or capture move
+    && (isBasicMove fromPos toPos               -- Must be either basic move
+        || (isCaptureMove fromPos toPos         -- or a valid capture move
+            && isOpponentPiece gameBoard (getCapturedPosition fromPos toPos) player))  -- with opponent's piece
 
 -- | Check if two positions represent a basic move (one square diagonally)
 isBasicMove :: Position -> Position -> Bool
