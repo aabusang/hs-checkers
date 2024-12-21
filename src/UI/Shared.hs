@@ -11,6 +11,36 @@ import UI.Config (BoardConfig(..), boardConfig)
 import Board.Validation (isValidBoardPosition)
 import Debug.Trace (trace)
 
+-- | Convert screen coordinates to board position
+screenToBoardPosition :: UIScreenPos -> Maybe UIPosition
+screenToBoardPosition (screenX, screenY) =
+    let config = boardConfig
+        sqSize = squareSize config * scaleFactor config
+        (centerX, centerY) = getBoardCenterOffset config
+        
+        -- Convert screen coordinates relative to board's top-left
+        relX = screenX - centerX
+        relY = screenY - centerY
+        
+        -- Convert to board coordinates (0-7)
+        row = floor (relY / sqSize)
+        col = floor (relX / sqSize)
+        
+        pos = (row, col)
+    in if isValidBoardPosition pos
+       then Just pos
+       else Nothing
+
+-- | Convert board position to screen coordinates
+boardToScreenPosition :: BoardConfig -> UIPosition -> UIScreenPos
+boardToScreenPosition config (row, col) =
+    let sqSize = squareSize config * scaleFactor config
+        (centerX, centerY) = getBoardCenterOffset config
+        -- Convert board coordinates to screen coordinates
+        screenX = centerX + (fromIntegral col * sqSize) + (sqSize / 2)
+        screenY = centerY + (fromIntegral row * sqSize) + (sqSize / 2)
+    in (screenX, screenY)
+
 -- | Get board dimensions in pixels
 getBoardPixelSize :: BoardConfig -> Float
 getBoardPixelSize config = 8 * squareSize config * scaleFactor config
@@ -20,63 +50,3 @@ getBoardCenterOffset :: BoardConfig -> (Float, Float)
 getBoardCenterOffset config =
     let boardSize = getBoardPixelSize config
     in (offsetX config - boardSize/2, offsetY config - boardSize/2)  -- Center the board in window with offsets
-
--- | Convert screen coordinates to board position
-screenToBoardPosition :: [[Maybe UIPiece]] -> UIScreenPos -> Maybe UIPosition
-screenToBoardPosition board (screenX, screenY) =
-    let config = boardConfig
-        sqSize = squareSize config * scaleFactor config
-        (centerX, centerY) = getBoardCenterOffset config
-        
-        -- Convert screen coordinates relative to board's top-left
-        relX = screenX - centerX
-        relY = screenY - centerY
-        
-        -- Convert to board coordinates (0-7) using round instead of floor
-        -- This provides better handling of clicks near square edges
-        row = round (relY / sqSize)
-        col = round (relX / sqSize)
-        
-        pos = (row, col)
-        
-        -- Get piece information for debugging
-        pieceInfo = case (if isValidBoardPosition pos 
-                         then (board !! row) !! col
-                         else Nothing) of
-            Just piece -> " Piece: " ++ show (uiPlayer piece)
-            Nothing -> " No piece"
-        
-        -- Debug output
-        debug = "Screen: (" ++ show screenX ++ "," ++ show screenY ++ 
-                ") Rel: (" ++ show relX ++ "," ++ show relY ++ 
-                ") Board: " ++ show pos ++ pieceInfo
-    in trace debug $ 
-       if isValidBoardPosition pos
-       then Just pos
-       else Nothing
-
--- | Convert a board position to screen coordinates
--- This function handles the transformation in these steps:
--- 1. Calculate the size of each square on screen (includes scaling)
--- 2. Get the board's center offset on screen
--- 3. Transform grid coordinates to pixel coordinates
--- 4. Apply the center offset to position the board correctly
-boardToScreenPosition :: BoardConfig -> UIPosition -> UIScreenPos
-boardToScreenPosition config pos =
-    let
-        -- Step 1: Calculate the actual size of each square on screen
-        squareSizeOnScreen = squareSize config * scaleFactor config
-        
-        -- Step 2: Get the board's offset from the window edge
-        (boardOffsetHorizontal, boardOffsetVertical) = getBoardCenterOffset config
-        
-        -- Step 3: Convert grid position to screen coordinates
-        (gridVertical, gridHorizontal) = pos  -- (row, col) where row is vertical, col is horizontal
-        pixelsFromLeftEdge   = fromIntegral gridHorizontal * squareSizeOnScreen
-        pixelsFromTopEdge    = fromIntegral gridVertical * squareSizeOnScreen
-        
-        -- Step 4: Apply the offset to center the board
-        screenHorizontal = pixelsFromLeftEdge + boardOffsetHorizontal
-        screenVertical   = pixelsFromTopEdge + boardOffsetVertical
-    in
-        (screenHorizontal, screenVertical)

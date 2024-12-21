@@ -21,8 +21,7 @@ module Rules.Movement
 import Board.Types (Player(..), PieceType(..), Piece(..), Board)
 import Board.Validation (isValidBoardPosition, isEmpty, isOpponentPiece)
 import Board.Operations (getPieceAt, movePiece)
-import Rules.Jumps (getAllValidJumpMoves)
-import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures)
+import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures, getMultiCaptures)
 import Types.Common (Position)
 import Types.Game (GameState(..))
 
@@ -37,12 +36,15 @@ playerDirection Black = 1
 
 -- | Check if a move is in the correct direction for a piece
 isValidDirection :: Piece -> Position -> Position -> Bool
-isValidDirection (Piece player pisType) (fromRow, _) (toRow, _) =
+isValidDirection (Piece player pisType) fromPos toPos =
     case pisType of
         King -> True  -- Kings can move in any direction
-        Man  -> case player of
-            White -> toRow < fromRow  -- White moves up (decreasing row)
-            Black -> toRow > fromRow  -- Black moves down (increasing row)
+        Man  -> isCaptureMove fromPos toPos  -- Allow any direction for captures
+                || case player of  -- Normal moves follow direction rules
+                    White -> toRow < fromRow  -- White moves up (decreasing row)
+                    Black -> toRow > fromRow  -- Black moves down (increasing row)
+    where (fromRow, _) = fromPos
+          (toRow, _) = toPos
 
 
 -- _________________________________ MOVE VALIDATION _________________________________
@@ -100,19 +102,30 @@ getValidBasicMoves (Piece player pisType) pos =
 getValidMoves :: GameState -> Position -> [Position]
 getValidMoves (GameState gameBoard player _ _ _ _) pos =
     case getPieceAt gameBoard pos of
-        Just piece@(Piece pisPlayer _) | pisPlayer == player -> 
-            getValidBasicMoves piece pos ++ getAllValidJumpMoves gameBoard pos piece
-        _ -> []  -- No piece or opponent's piece
+        Nothing -> []
+        Just piece@(Piece owner _) ->
+            if owner /= player
+            then []
+            else
+                let basicMoves = getValidBasicMoves piece pos
+                    -- Get all possible capture sequences
+                    captureSequences = getMultiCaptures gameBoard pos player
+                    -- Take the next position from each capture sequence
+                    captureMoves = case captureSequences of
+                        [] -> []
+                        seqs -> map (head . tail) seqs  -- Get the first move of each sequence
+                in
+                    -- If captures are available, they are mandatory
+                    if not (null captureMoves)
+                    then captureMoves
+                    else filter (isEmpty gameBoard) basicMoves
 
 -- | Get all possible moves for all pieces of the current player
 getAllPossibleMoves :: GameState -> [(Position, [Position])]
-getAllPossibleMoves gameState@(GameState gameBoard thisPlayer _ _ _ _) =
-    let positions = [(row, col) | row <- [0..7], col <- [0..7]]
-        playerPieces = filter (isPieceOfPlayer gameBoard thisPlayer) positions
-        validMovesPos = [(pos, moves) | pos <- playerPieces,
-                                   let moves = getValidMoves gameState pos,
-                                   not (null moves)]
-    in validMovesPos
+getAllPossibleMoves gameState@(GameState board currentPlayer _ _ _ _) =
+    let allPositions = [(r,c) | r <- [0..7], c <- [0..7]]
+        playerPositions = filter (isPieceOfPlayer board currentPlayer) allPositions
+    in map (\pos -> (pos, getValidMoves gameState pos)) playerPositions
 
 -- | Check if a position contains a piece belonging to the given player
 isPieceOfPlayer :: Board -> Player -> Position -> Bool

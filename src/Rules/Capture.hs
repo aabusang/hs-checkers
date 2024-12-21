@@ -12,9 +12,11 @@ module Rules.Capture
       -- * Capture Information
     , getCapturedPosition
     , getPossibleCaptures
+    , getMultiCaptures
     ) where
 
-import Board.Types (Player(..), Board)
+import Board.Types (Player(..), Board, Piece(..), PieceType(..))
+import Board.Operations (getPieceAt)
 import Board.Validation (isValidBoardPosition, isEmpty, isOpponentPiece)
 import Types.Common (Position)
 
@@ -43,19 +45,41 @@ getCapturedPosition fromPos toPos =
         capturedCol = (fromCol + toCol) `div` 2
     in (capturedRow, capturedCol)
 
--- | Get all possible capture moves from a position
+-- | Get all possible single capture moves from a position
 getPossibleCaptures :: Board -> Position -> Player -> [Position]
 getPossibleCaptures board fromPos@(row, col) player =
-    let possibleCaptures = [ (row + 2, col + 2)  -- down-right
-                          ,  (row + 2, col - 2)  -- down-left
-                          ,  (row - 2, col + 2)  -- up-right
-                          ,  (row - 2, col - 2)  -- up-left
-                          ]
-    in filter (isValidCapture board fromPos player) possibleCaptures
+    case getPieceAt board fromPos of
+        Nothing -> []
+        Just (Piece _ _) ->  
+            let possibleCaptures = [ (row + 2, col + 2)  
+                                 , (row + 2, col - 2)  
+                                 , (row - 2, col + 2)  
+                                 , (row - 2, col - 2)  
+                                 ]
+            in filter (isValidCapture board fromPos player) possibleCaptures
 
 -- | Check if a capture move is valid
 isValidCapture :: Board -> Position -> Player -> Position -> Bool
 isValidCapture board fromPos player toPos =
     isValidBoardPosition toPos 
-    && isEmpty board toPos  -- landing spot must be empty
+    && isEmpty board toPos  
     && isOpponentPiece board (getCapturedPosition fromPos toPos) player
+
+-- | Get all possible multi-capture sequences from a position
+-- Returns a list of capture sequences, where each sequence is a list of positions
+getMultiCaptures :: Board -> Position -> Player -> [[Position]]
+getMultiCaptures board fromPos player = 
+    let initialCaptures = getPossibleCaptures board fromPos player
+    in if null initialCaptures
+       then []
+       else map (\capture -> fromPos : findCaptureSequence board capture player [fromPos]) initialCaptures
+
+-- | Helper function to recursively find capture sequences
+-- Returns the sequence of positions that form a valid capture sequence
+findCaptureSequence :: Board -> Position -> Player -> [Position] -> [Position]
+findCaptureSequence board currentPos player visited =
+    let nextCaptures = filter (\pos -> pos `notElem` visited) $ 
+                      getPossibleCaptures board currentPos player
+    in if null nextCaptures
+       then [currentPos]
+       else currentPos : concatMap (\nextPos -> findCaptureSequence board nextPos player (currentPos:visited)) nextCaptures

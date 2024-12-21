@@ -1,6 +1,5 @@
 module UI.Input
     ( handleInput
-    , InputEvent(..)
     ) where
 
 import Graphics.Gloss.Interface.Pure.Game 
@@ -8,42 +7,26 @@ import Graphics.Gloss.Interface.Pure.Game
     , Key(..)
     , SpecialKey(..)
     , MouseButton(..)
-    , KeyState(..)
+    , KeyState(Down)
     )
-import Game.State (selectPiece, makeMove)
+import Game.State (selectPiece, makeMove, selectedPiecePos)
 import UI.Types
 import UI.Shared (screenToBoardPosition)
-import UI.Conversion (toUIState, fromUIPosition, fromUIState)
-
--- | Custom input events
-data InputEvent 
-    = MouseClick UIPosition
-    | KeyPress Key
-    | NoEvent
-    deriving (Show, Eq)
+import UI.Conversion (toUIState, fromUIPosition, fromUIState, toUIPosition)
 
 -- | Handle all input events
-handleInput :: UIState -> Event -> UIState
-handleInput uiState event =
-    case convertEvent uiState event of
-        MouseClick pos -> handleMouseClick pos uiState
-        KeyPress (SpecialKey KeyEsc) -> clearSelection uiState
-        KeyPress _ -> uiState  -- Handle all other key presses
-        NoEvent -> uiState
-
--- | Convert Gloss event to our InputEvent type
-convertEvent :: UIState -> Event -> InputEvent
-convertEvent uiState (EventKey (MouseButton LeftButton) Down _ pos) = 
-    let board = uiBoard (gameState uiState)
-    in case screenToBoardPosition board pos of
-        Just boardPos -> MouseClick boardPos
-        Nothing -> NoEvent
-convertEvent _ (EventKey key Down _ _) = KeyPress key
-convertEvent _ _ = NoEvent
+handleInput :: Event -> UIState -> UIState
+handleInput (EventKey (MouseButton LeftButton) Down _ screenPos) uiState =
+    case screenToBoardPosition screenPos of
+        Just boardPos -> handleMouseClick uiState boardPos
+        Nothing -> uiState
+handleInput (EventKey (SpecialKey KeyEsc) Down _ _) uiState = 
+    clearSelection uiState
+handleInput _ uiState = uiState
 
 -- | Handle mouse click at a board position
-handleMouseClick :: UIPosition -> UIState -> UIState
-handleMouseClick pos uiState =
+handleMouseClick :: UIState -> UIPosition -> UIState
+handleMouseClick uiState pos =
     if isPositionSelected uiState
     then handleMovement uiState pos
     else handleSelection uiState pos
@@ -77,8 +60,10 @@ tryMove uiState fromPos toPos =
     in case makeMove gs (fromUIPosition fromPos) (fromUIPosition toPos) of
         Just newGameState -> 
             uiState { gameState = gameState $ toUIState newGameState
-                   , selectedPosition = Nothing
-                   , lastCapture = Nothing
+                   , selectedPosition = case selectedPiecePos newGameState of
+                                        Just pos -> Just $ toUIPosition pos
+                                        Nothing -> Nothing
+                   , lastCapture = Just toPos
                    , captureAnimation = 0.0
                    }
         Nothing -> clearSelection uiState

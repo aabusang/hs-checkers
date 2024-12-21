@@ -5,22 +5,15 @@
 -- This module handles all the graphical rendering using the Gloss library,
 -- including drawing the board, pieces, and game state.
 module UI.Rendering
-    ( -- * Window Configuration
-      windowWidth
-    , windowHeight
-      -- * Rendering
-    , drawGameState
+    ( drawGameState
     ) where
 
 -- External imports
 import Graphics.Gloss
-
--- UI types and configuration
 import UI.Types
-import UI.Config (BoardConfig(..), boardConfig, PieceConfig(..), defaultPieceConfig, windowWidth, windowHeight)
+import UI.Config (BoardConfig(..), boardConfig, PieceConfig(..), defaultPieceConfig, scaleFactor, squareSize, pieceScale, highlightScale)
 import UI.Shared (boardToScreenPosition)
 import UI.Board (squareColor)
-
 
 -- | Get the color for a piece
 pieceColor :: UIPiece -> Color
@@ -29,8 +22,8 @@ pieceColor piece = case uiPlayer piece of
     UIWhite -> makeColorI 245 245 245 255   -- Off-white
 
 -- | Get a piece at a board position
-getPieceAt :: UIGameState -> UIPosition -> Maybe UIPiece
-getPieceAt gameState (row, col) = (uiBoard gameState) !! row !! col
+getPieceAt :: UIGameState -> (Int, Int) -> Maybe UIPiece
+getPieceAt state (row, col) = (uiBoard state) !! row !! col
 
 -- | Draw the checkered board squares
 drawSquares :: Picture
@@ -53,7 +46,7 @@ drawSquares =
         ]
 
 -- | Draw a piece at a board position
-drawPiece :: UIPosition -> UIPiece -> Picture
+drawPiece :: (Int, Int) -> UIPiece -> Picture
 drawPiece pos piece =
     let config = boardConfig
         (screenX, screenY) = boardToScreenPosition config pos
@@ -72,11 +65,11 @@ drawGameState state =
         , maybe blank drawHighlight (selectedPosition state)
         ]
   where
-    drawPieces gameState = pictures
+    drawPieces state = pictures
         [ maybe blank (drawPiece (row, col)) piece
         | row <- [0..7]
         , col <- [0..7]
-        , let piece = getPieceAt gameState (row, col)
+        , let piece = getPieceAt state (row, col)
         ]
     
     drawHighlight position =

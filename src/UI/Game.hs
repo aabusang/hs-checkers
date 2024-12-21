@@ -1,7 +1,7 @@
 -- |
 -- Module      : UI.Game
 -- Description : Main game loop and state management
-module UI.Game
+module UI.Game 
     ( runGame
     ) where
 
@@ -22,12 +22,13 @@ backgroundColor = white
 
 -- | Initial game state
 initialState :: GameMode -> UIState
-initialState _mode = UIState
+initialState mode = UIState 
     { gameState = gameState $ toUIState initialGameState
     , selectedPosition = Nothing
     , hoverPosition = Nothing
     , lastCapture = Nothing
     , captureAnimation = 0.0
+    , gameMode = mode
     }
 
 -- | Window settings
@@ -40,5 +41,4 @@ window = InWindow "Checkers"
 runGame :: GameMode -> IO ()
 runGame mode = do
     play window backgroundColor fps (initialState mode) drawGameState 
-         (\event state -> handleInput state event)
-         updateAnimations
+         handleInput updateAnimations
