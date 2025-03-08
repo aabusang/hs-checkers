@@ -15,6 +15,7 @@ module UI.Conversion
     ) where
 
 import qualified UI.Types as UI
+import UI.Types (AIThinkingState(Idle))
 import qualified Types.Game as Game
 import qualified Board.Types as Board
 import qualified Game.Mode as Game (GameMode(..))
@@ -33,6 +34,7 @@ toUIState gameState = UI.UIState
     , UI.lastCapture = Nothing
     , UI.captureAnimation = 0.0
     , UI.gameMode = Game.TwoPlayer
+    , UI.aiThinkingState = Idle
     }
 
 -- | Convert UI state to game state

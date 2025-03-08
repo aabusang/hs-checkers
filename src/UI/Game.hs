@@ -31,6 +31,7 @@ initialState mode = UIState
     , lastCapture = Nothing
     , captureAnimation = 0.0
     , gameMode = mode
+    , aiThinkingState = Idle
     }
 
 -- | Window settings

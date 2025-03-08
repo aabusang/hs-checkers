@@ -11,6 +11,7 @@ module UI.Types
     , UIPiece(..)     -- ^ UI-specific piece representation
     , UIGameState(..) -- ^ Simplified game state for UI
     , UIState(..)     -- ^ Complete UI state
+    , AIThinkingState(..) -- ^ AI thinking state
     ) where
 
 import Game.Mode (GameMode(..))
@@ -44,6 +45,12 @@ data UIGameState = UIGameState
     , uiCurrentPlayer :: UIPlayer   -- ^ Current player
     } deriving (Show)
 
+-- | AI thinking state for tracking AI move timing
+data AIThinkingState = Idle             -- ^ AI is not thinking
+                     | Thinking Float   -- ^ AI is thinking (with elapsed time)
+                     | ReadyToMove      -- ^ AI has finished thinking and is ready to move
+                     deriving (Show, Eq)
+
 -- | Complete UI state
 data UIState = UIState
     { gameState :: UIGameState
@@ -52,4 +59,5 @@ data UIState = UIState
     , lastCapture :: Maybe UIPosition
     , captureAnimation :: Float
     , gameMode :: GameMode              -- ^ Current game mode
+    , aiThinkingState :: AIThinkingState -- ^ Current AI thinking state
     } deriving (Show)
