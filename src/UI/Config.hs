@@ -15,6 +15,9 @@ module UI.Config
     , windowPosX
     , windowPosY
     , fps
+      -- * Sidebar Configuration
+    , sidebarWidth
+    , sidebarMargin
     ) where
 
 -- | Configuration for board rendering and input
@@ -33,7 +36,7 @@ defaultBoardConfig :: BoardConfig
 defaultBoardConfig = BoardConfig 
     { squareSize = 80          -- Each square is 80 pixels (for 8x8 board)
     , scaleFactor = 1.0        -- No scaling
-    , offsetX    = 10
+    , offsetX    = 250         -- Increased to make room for sidebar
     , offsetY    = -10         
     , boardStart = 0         -- Board starts at 0
     , boardEnd   = 7           -- Board ends at 7 (8x8 board)
@@ -60,13 +63,18 @@ defaultPieceConfig = PieceConfig
 
 -- | Window dimensions
 windowWidth, windowHeight :: Int
-windowWidth = 1000
+windowWidth = 1200  -- Increased to make room for sidebar
 windowHeight = 800
 
 -- | Window position on screen
 windowPosX, windowPosY :: Int
-windowPosX = 300  -- Initial X position of window on screen
+windowPosX = 200  -- Initial X position of window on screen
 windowPosY = 100  -- Initial Y position of window on screen
+
+-- | Sidebar dimensions
+sidebarWidth, sidebarMargin :: Float
+sidebarWidth = 200  -- Width of the sidebar area
+sidebarMargin = 20  -- Margin between sidebar elements
 
 -- | Frames per second
 fps :: Int

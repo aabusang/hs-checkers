@@ -10,7 +10,7 @@ module UI.AIIntegration
     ) where
 
 import Graphics.Gloss.Data.Picture (Picture)
-import UI.Types (UIState(..), UIPlayer(..), UIGameState(..), gameState, gameMode, selectedPosition, aiThinkingState, AIThinkingState(..))
+import UI.Types (UIState(..), UIPlayer(..), UIGameState(..), gameState, gameMode, selectedPosition, aiThinkingState, AIThinkingState(..), aiDifficulty)
 import UI.Conversion (fromUIState, toUIState, toUIPosition)
 import Game.State (selectedPiecePos)
 import Game.Mode (GameMode(..))
@@ -45,8 +45,8 @@ processAITurn dt uiState =
                                return $ uiState { aiThinkingState = Thinking newElapsedTime }
                     
                     ReadyToMove -> do
-                        -- Make AI move
-                        maybeNewGameState <- makeAIMove Medium gameState'
+                        -- Make AI move using the selected difficulty level
+                        maybeNewGameState <- makeAIMove (aiDifficulty uiState) gameState'
                         case maybeNewGameState of
                             Just newGameState -> 
                                 -- Update UI state with AI's move

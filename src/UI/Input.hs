@@ -13,15 +13,29 @@ import Game.State (selectPiece, makeMove, selectedPiecePos)
 import UI.Types
 import UI.Shared (screenToBoardPosition)
 import UI.Conversion (toUIState, fromUIPosition, fromUIState, toUIPosition)
+import AI.Types (Difficulty(..))
+import Game.Mode (GameMode(..))
+import UI.Config (sidebarWidth, sidebarMargin, windowWidth, windowHeight)
 
 -- | Handle all input events
 handleInput :: Event -> UIState -> UIState
 handleInput (EventKey (MouseButton LeftButton) Down _ screenPos) uiState =
-    case screenToBoardPosition screenPos of
+    -- Check if click is in the sidebar difficulty buttons area
+    if isSidebarClick screenPos && gameMode uiState == SinglePlayer
+    then handleSidebarClick uiState screenPos
+    -- Otherwise handle as a board click
+    else case screenToBoardPosition screenPos of
         Just boardPos -> handleMouseClick uiState boardPos
         Nothing -> uiState
 handleInput (EventKey (SpecialKey KeyEsc) Down _ _) uiState = 
     clearSelection uiState
+-- Handle AI difficulty changes
+handleInput (EventKey (Char '1') Down _ _) uiState = 
+    uiState { aiDifficulty = Easy }
+handleInput (EventKey (Char '2') Down _ _) uiState = 
+    uiState { aiDifficulty = Medium }
+handleInput (EventKey (Char '3') Down _ _) uiState = 
+    uiState { aiDifficulty = Hard }
 handleInput _ uiState = uiState
 
 -- | Handle mouse click at a board position
@@ -71,3 +85,42 @@ tryMove uiState fromPos toPos =
 -- | Clear the current selection
 clearSelection :: UIState -> UIState
 clearSelection uiState = uiState { selectedPosition = Nothing }
+
+-- | Check if a click is in the sidebar area
+isSidebarClick :: (Float, Float) -> Bool
+isSidebarClick (x, y) = x < -fromIntegral windowWidth / 2 + sidebarWidth
+
+-- | Handle clicks in the sidebar
+handleSidebarClick :: UIState -> (Float, Float) -> UIState
+handleSidebarClick uiState (x, y) =
+    -- Calculate sidebar coordinates
+    let sidebarX = -fromIntegral windowWidth / 2 + sidebarMargin
+        sidebarTop = fromIntegral windowHeight / 2 - sidebarMargin
+        
+        -- Difficulty buttons area
+        buttonY = sidebarTop - 200
+        buttonWidth = 50
+        buttonHeight = 30
+        buttonSpacing = 60
+        
+        -- Button positions
+        easyButtonX = sidebarX + 30
+        mediumButtonX = sidebarX + 30 + buttonSpacing
+        hardButtonX = sidebarX + 30 + 2*buttonSpacing
+        
+        -- Check if click is within a button's bounds
+        isInButton centerX = 
+            x >= centerX - buttonWidth/2 && 
+            x <= centerX + buttonWidth/2 && 
+            y >= buttonY - buttonHeight/2 && 
+            y <= buttonY + buttonHeight/2
+    in
+        -- Set difficulty based on which button was clicked
+        if isInButton easyButtonX then 
+            uiState { aiDifficulty = Easy }
+        else if isInButton mediumButtonX then 
+            uiState { aiDifficulty = Medium }
+        else if isInButton hardButtonX then 
+            uiState { aiDifficulty = Hard }
+        else 
+            uiState  -- Click was in sidebar but not on a button

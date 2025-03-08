@@ -14,12 +14,13 @@ import System.Random (StdGen, randomR)
 import Data.List (sortOn)
 import Data.Ord (Down(..))
 
-import Board.Types (Player(..), Board, Piece(..))
+import Board.Types (Player(..), Board, Piece(..), PieceType(..))
 import Board.Operations (getPieceAt, movePiece, removePiece)
 import Types.Common (Position)
 import Types.Game (GameState(..))
 import Rules.Movement (getValidMoves)
 import Rules.Capture (isCaptureMove, getCapturedPosition, getPossibleCaptures)
+import Game.State (makeMove)
 import AI.Types (Difficulty(..), AIMove, MoveScore)
 
 -- | Select an AI move based on the current game state and difficulty
@@ -29,9 +30,9 @@ selectAIMove rng difficulty gameState =
     in if null validMoves
        then Nothing  -- No valid moves available
        else case difficulty of
-            Easy   -> selectRandomMove rng validMoves
-            Medium -> selectBestMoveOneStep rng validMoves gameState
-            Hard   -> selectBestMoveOneStep rng validMoves gameState  -- For simplicity, same as medium for now
+            Easy   -> selectEasyMove rng validMoves gameState
+            Medium -> selectMediumMove rng validMoves gameState
+            Hard   -> selectHardMove rng validMoves gameState
 
 -- | Get all valid moves for the current player
 getAllValidMoves :: GameState -> [AIMove]
@@ -59,13 +60,33 @@ getMovesForPiece gameState fromPos =
 isCapture :: GameState -> AIMove -> Bool
 isCapture gameState (fromPos, toPos) = isCaptureMove fromPos toPos
 
--- | Select a random move from the list of valid moves
-selectRandomMove :: StdGen -> [AIMove] -> Maybe (AIMove, StdGen)
-selectRandomMove rng [] = Nothing
-selectRandomMove rng moves =
-    let (index, newRng) = randomR (0, length moves - 1) rng
-        selectedMove = moves !! index
-    in Just (selectedMove, newRng)
+-- | Select a move for Easy difficulty (mostly random with slight preference for captures)
+selectEasyMove :: StdGen -> [AIMove] -> GameState -> Maybe (AIMove, StdGen)
+selectEasyMove rng [] _ = Nothing
+selectEasyMove rng moves gameState =
+    let 
+        -- Separate capture and non-capture moves
+        captureMoves = filter (isCapture gameState) moves
+        normalMoves = filter (not . isCapture gameState) moves
+        
+        -- 70% chance to choose a capture move if available, otherwise random
+        (randomVal, rng1) = randomR (1 :: Int, 10) rng
+        preferCaptures = randomVal <= 7  -- 70% chance
+        
+        -- Choose which move list to use
+        movesToUse = if not (null captureMoves) && preferCaptures
+                     then captureMoves
+                     else moves
+                     
+        -- Pick a random move from the selected list
+        (index, rng2) = randomR (0, length movesToUse - 1) rng1
+        selectedMove = movesToUse !! index
+    in Just (selectedMove, rng2)
+
+-- | Select a move for Medium difficulty (evaluates one move ahead)
+selectMediumMove :: StdGen -> [AIMove] -> GameState -> Maybe (AIMove, StdGen)
+selectMediumMove rng [] _ = Nothing
+selectMediumMove rng moves gameState = selectBestMoveOneStep rng moves gameState
 
 -- | Select the best move by looking one step ahead
 selectBestMoveOneStep :: StdGen -> [AIMove] -> GameState -> Maybe (AIMove, StdGen)
@@ -87,7 +108,27 @@ selectBestMoveOneStep rng moves gameState =
         (selectedMove, _) = topMoves !! index
     in Just (selectedMove, newRng)
 
--- | Score a move based on its immediate outcome
+-- | Select a move for Hard difficulty (looks two moves ahead and uses better evaluation)
+selectHardMove :: StdGen -> [AIMove] -> GameState -> Maybe (AIMove, StdGen)
+selectHardMove rng [] _ = Nothing
+selectHardMove rng moves gameState =
+    let 
+        -- Score each move with a deeper evaluation
+        scoredMoves = map (\move -> (move, scoreHardMove move gameState)) moves
+        
+        -- Sort moves by score (highest first)
+        sortedMoves = sortOn (Down . snd) scoredMoves
+        
+        -- Get top moves (those with the same highest score)
+        bestScore = snd (head sortedMoves)
+        topMoves = takeWhile ((\s -> abs (bestScore - s) <= 2) . snd) sortedMoves  -- Allow some variation
+        
+        -- Select randomly from top moves
+        (index, newRng) = randomR (0, length topMoves - 1) rng
+        (selectedMove, _) = topMoves !! index
+    in Just (selectedMove, newRng)
+
+-- | Score a move based on its immediate outcome (for Medium difficulty)
 scoreMove :: AIMove -> GameState -> MoveScore
 scoreMove (fromPos, toPos) gameState =
     let 
@@ -115,6 +156,53 @@ scoreMove (fromPos, toPos) gameState =
         protectionScore = 0  -- Simplified for now
         
     in baseScore + captureScore + advanceScore + protectionScore
+
+-- | Score a move for Hard difficulty (more sophisticated evaluation)
+scoreHardMove :: AIMove -> GameState -> MoveScore
+scoreHardMove move@(fromPos, toPos) gameState =
+    let 
+        -- Get the basic score first
+        basicScore = scoreMove move gameState
+        
+        -- Simulate making this move
+        simulatedState = simulateMove move gameState
+        
+        -- Check if this move leads to a king
+        kingScore = case simulatedState of
+            Just state -> 
+                case getPieceAt (board state) toPos of
+                    Just piece -> if pieceType piece == King then 5 else 0
+                    Nothing -> 0
+            Nothing -> 0
+            
+        -- Look ahead to see opponent's best response
+        opponentScore = case simulatedState of
+            Just state -> 
+                let opponentMoves = getAllValidMoves state
+                in if null opponentMoves
+                   then 20  -- Win if opponent has no moves
+                   else negate $ maximum $ map (\m -> scoreMove m state) opponentMoves
+            Nothing -> 0
+            
+        -- Evaluate board control (center control and edge avoidance)
+        controlScore = evaluateBoardControl toPos
+        
+    in basicScore + kingScore + (opponentScore `div` 2) + controlScore
+
+-- | Evaluate how good a position is for board control
+evaluateBoardControl :: Position -> MoveScore
+evaluateBoardControl (row, col) =
+    let 
+        -- Center control is good
+        centerScore = if row >= 2 && row <= 5 && col >= 2 && col <= 5 then 2 else 0
+        
+        -- Edge positions are vulnerable (except for kings)
+        edgeScore = if row == 0 || row == 7 || col == 0 || col == 7 then -1 else 0
+    in centerScore + edgeScore
+
+-- | Simulate making a move and return the resulting game state
+simulateMove :: AIMove -> GameState -> Maybe GameState
+simulateMove (fromPos, toPos) gameState = makeMove gameState fromPos toPos
 
 -- | Calculate the value of advancing a piece
 advanceValue :: Position -> Position -> MoveScore

@@ -15,6 +15,7 @@ module UI.Types
     ) where
 
 import Game.Mode (GameMode(..))
+import AI.Types (Difficulty(..))
 
 -- | Board position type (0-7, 0-7)
 type UIPosition = (Int, Int)
@@ -60,4 +61,5 @@ data UIState = UIState
     , captureAnimation :: Float
     , gameMode :: GameMode              -- ^ Current game mode
     , aiThinkingState :: AIThinkingState -- ^ Current AI thinking state
+    , aiDifficulty :: Difficulty        -- ^ AI difficulty level
     } deriving (Show)

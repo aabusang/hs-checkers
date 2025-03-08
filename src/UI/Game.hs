@@ -17,6 +17,7 @@ import UI.Conversion (toUIState)
 import Game.Mode (GameMode(..))
 import UI.Config (windowWidth, windowHeight, windowPosX, windowPosY, fps)
 import UI.AIIntegration (processAITurn)
+import AI.Types (Difficulty(..))
 
 -- | Background color
 backgroundColor :: Color
@@ -32,6 +33,7 @@ initialState mode = UIState
     , captureAnimation = 0.0
     , gameMode = mode
     , aiThinkingState = Idle
+    , aiDifficulty = Medium  -- Default AI difficulty
     }
 
 -- | Window settings

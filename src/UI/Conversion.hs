@@ -21,6 +21,7 @@ import qualified Board.Types as Board
 import qualified Game.Mode as Game (GameMode(..))
 import qualified Types.Common as Common
 import Rules.Movement (getValidMoves)
+import AI.Types (Difficulty(Medium))
 
 -- | Convert game state to UI state
 toUIState :: Game.GameState -> UI.UIState
@@ -35,6 +36,7 @@ toUIState gameState = UI.UIState
     , UI.captureAnimation = 0.0
     , UI.gameMode = Game.TwoPlayer
     , UI.aiThinkingState = Idle
+    , UI.aiDifficulty = Medium
     }
 
 -- | Convert UI state to game state
