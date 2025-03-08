@@ -16,6 +16,7 @@ dependencies:
 - base >= 4.7 && < 5
 - gloss >= 1.13
 - random
+- time
 
 ghc-options:
 - -Wall

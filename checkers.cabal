@@ -25,6 +25,9 @@ source-repository head
 
 library
   exposed-modules:
+      AI.Engine
+      AI.Player
+      AI.Types
       Board.Construction
       Board.Operations
       Board.Types
@@ -37,6 +40,7 @@ library
       Rules.Promotion
       Types.Common
       Types.Game
+      UI.AIIntegration
       UI.Animation
       UI.Board
       UI.Config
@@ -59,6 +63,7 @@ library
       base >=4.7 && <5
     , gloss >=1.13
     , random
+    , time
   default-language: Haskell2010
 
 executable checkers-exe
@@ -75,6 +80,7 @@ executable checkers-exe
     , checkers
     , gloss >=1.13
     , random
+    , time
   default-language: Haskell2010
 
 test-suite checkers-test
@@ -96,4 +102,5 @@ test-suite checkers-test
     , checkers
     , gloss >=1.13
     , random
+    , time
   default-language: Haskell2010
